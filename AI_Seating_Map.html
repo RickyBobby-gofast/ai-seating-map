@@ -1,0 +1,3371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Augustine Institute — Interactive Seating Map</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#002157;--navy-dark:#001540;--navy-mid:#002d70;--navy-light:#003d8a;
+  --gold:#917F2E;--gold-hover:#7d6c26;--gold-light:#FFE06A;--gold-pale:#FFF3A8;
+  --white:#fff;
+  --gray-50:#FAFAFA;--gray-100:#F4F4F5;--gray-200:#E4E4E7;
+  --gray-300:#D1D5DB;--gray-400:#A1A1AA;--gray-600:#52525B;--gray-800:#27272A;
+  --green:#166534;--green-bg:#DCFCE7;
+  --amber:#92400E;--amber-bg:#FEF3C7;
+  --blue:#1E40AF;--blue-bg:#DBEAFE;
+  --red:#991B1B;--red-bg:#FEE2E2;
+  --purple:#6B21A8;--purple-bg:#F3E8FF;
+  --font:"Avenir","Avenir Next","Nunito",system-ui,Arial,sans-serif;
+  --font-display:"Publico Banner","Playfair Display",Georgia,serif;
+  --font-size:14px;
+  --radius-sm:5px;--radius:9px;--radius-lg:13px;
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.1);
+  --shadow:0 4px 14px rgba(0,0,0,0.13);
+  --shadow-lg:0 10px 36px rgba(0,0,0,0.2);
+  --t:.2s cubic-bezier(.4,0,.2,1);
+}
+
+/* ── SP LOADING OVERLAY ───────────────────────────────────────────────────── */
+#sp-loading{
+  position:fixed;inset:0;background:var(--navy-dark);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:9999;transition:opacity .4s ease;
+}
+#sp-loading.hidden{opacity:0;pointer-events:none}
+.sp-spinner{
+  width:44px;height:44px;border:3px solid rgba(255,255,255,0.12);
+  border-top-color:var(--gold);border-radius:50%;
+  animation:spin .8s linear infinite;margin-bottom:18px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sp-loading-text{color:rgba(255,255,255,0.6);font-size:13px;letter-spacing:0.5px}
+
+body{font-family:var(--font);font-size:var(--font-size);background:#111;color:var(--gray-800);overflow:hidden;height:100vh}
+#app{display:flex;flex-direction:column;height:100vh}
+
+/* ── TOP BAR ──────────────────────────────────────────────────────────────── */
+#topbar{
+  display:flex;align-items:center;gap:12px;padding:8px 16px;
+  background:var(--navy-dark);border-bottom:2px solid var(--gold);
+  flex-shrink:0;z-index:200;
+}
+#logo{display:flex;align-items:center;gap:10px;user-select:none;flex-shrink:0}
+#logo-shield{
+  width:36px;height:36px;border-radius:7px;flex-shrink:0;
+  background:linear-gradient(145deg,#9d8530,#917F2E);
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;color:var(--white);box-shadow:0 2px 8px rgba(0,0,0,0.35);
+}
+#logo-text{font-size:11px;line-height:1.4;color:rgba(255,255,255,0.8);letter-spacing:0.2px}
+#logo-text strong{display:block;font-size:13px;letter-spacing:1.4px;color:var(--white);font-weight:700}
+#breadcrumb{
+  display:flex;align-items:center;gap:3px;color:rgba(255,255,255,0.6);
+  font-size:12px;flex:1;padding:0 8px;flex-wrap:wrap;min-width:0;
+}
+.bc-sep{color:var(--gold);opacity:0.5;margin:0 1px;flex-shrink:0}
+.bc-item{cursor:pointer;padding:3px 8px;border-radius:var(--radius-sm);transition:all var(--t);color:rgba(255,255,255,0.65);white-space:nowrap}
+.bc-item:hover{background:rgba(255,255,255,0.1);color:var(--white)}
+.bc-item.active{color:var(--white);font-weight:700}
+
+/* Search */
+#search-wrap{position:relative;flex-shrink:0}
+#search-icon-svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:rgba(255,255,255,0.4);pointer-events:none}
+#search{
+  padding:7px 12px 7px 32px;border:1.5px solid rgba(255,255,255,0.14);
+  border-radius:20px;background:rgba(255,255,255,0.08);color:var(--white);
+  font-family:var(--font);font-size:13px;width:200px;outline:none;transition:all var(--t);
+}
+#search::placeholder{color:rgba(255,255,255,0.38)}
+#search:focus{background:rgba(255,255,255,0.13);border-color:var(--gold);width:240px;box-shadow:0 0 0 3px rgba(145,127,46,0.18)}
+#search-results{
+  display:none;position:absolute;top:calc(100% + 8px);right:0;width:295px;
+  background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow-lg);
+  z-index:500;max-height:290px;overflow-y:auto;border:1px solid var(--gray-200);
+}
+.sr-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--gray-100);transition:background var(--t)}
+.sr-item:last-child{border-bottom:none}
+.sr-item:hover{background:var(--gold-pale)}
+.sr-item strong{display:block;font-size:14px;color:var(--navy);font-weight:700}
+.sr-item span{font-size:12px;color:var(--gray-600);margin-top:1px;display:block}
+
+/* Topbar controls */
+#topbar-controls{display:flex;gap:8px;align-items:center;flex-shrink:0}
+#dept-filter{
+  padding:6px 10px;border:1.5px solid rgba(255,255,255,0.14);border-radius:var(--radius-sm);
+  background:rgba(255,255,255,0.08);color:var(--white);font-family:var(--font);
+  font-size:12px;outline:none;cursor:pointer;transition:border-color var(--t);
+}
+#dept-filter:focus{border-color:var(--gold)}
+#dept-filter option{background:var(--navy-dark);color:var(--white)}
+.topbar-btn{
+  display:flex;align-items:center;gap:6px;padding:7px 14px;
+  border:1.5px solid rgba(255,255,255,0.14);border-radius:var(--radius-sm);
+  background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.85);
+  font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;
+  transition:all var(--t);white-space:nowrap;letter-spacing:0.2px;
+}
+.topbar-btn:hover{background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.3);color:var(--white)}
+#btn-add-person{
+  background:var(--gold);color:var(--white);border-color:var(--gold);
+  box-shadow:0 2px 6px rgba(0,0,0,0.25);
+}
+#btn-add-person:hover{background:var(--gold-hover);border-color:var(--gold-hover);transform:translateY(-1px);box-shadow:0 4px 10px rgba(0,0,0,0.3)}
+
+/* ── OCCUPANCY BAR ────────────────────────────────────────────────────────── */
+#occ-bar{
+  display:flex;align-items:center;gap:16px;padding:5px 16px;
+  background:rgba(0,21,64,0.95);flex-shrink:0;border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.occ-item{display:flex;align-items:center;gap:9px;color:rgba(255,255,255,0.8);font-size:12px}
+.occ-label{opacity:0.65;white-space:nowrap;letter-spacing:0.2px}
+.occ-bar-track{width:88px;height:5px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden}
+.occ-bar-fill{height:100%;border-radius:3px;transition:width .5s ease}
+.occ-pct{font-weight:700;min-width:34px;font-size:12px}
+.occ-green{background:linear-gradient(90deg,#4ade80,#16a34a)}
+.occ-amber{background:linear-gradient(90deg,#fbbf24,#d97706)}
+.occ-red{background:linear-gradient(90deg,#f87171,#dc2626)}
+.occ-divider{width:1px;height:18px;background:rgba(255,255,255,0.08);flex-shrink:0}
+
+/* ── MAIN STAGE ───────────────────────────────────────────────────────────── */
+#stage{flex:1;position:relative;overflow:hidden;display:flex}
+
+/* ── VIEWS ────────────────────────────────────────────────────────────────── */
+.view{
+  position:absolute;inset:0;transition:opacity .4s ease,transform .5s cubic-bezier(.4,0,.2,1);
+  display:flex;align-items:stretch;
+}
+.view.hidden{opacity:0;pointer-events:none;transform:scale(1.03)}
+.view.active{opacity:1;pointer-events:all;transform:scale(1)}
+
+/* ── AERIAL ───────────────────────────────────────────────────────────────── */
+.aerial{background-size:cover;background-position:center;background-repeat:no-repeat;width:100%;height:100%;position:relative;overflow:hidden}
+.aerial-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,0.08) 0%,rgba(0,0,0,0.42) 100%);pointer-events:none}
+.aerial-title{position:absolute;top:26px;left:50%;transform:translateX(-50%);color:var(--white);text-align:center;text-shadow:0 2px 14px rgba(0,0,0,0.85);pointer-events:none;white-space:nowrap}
+.aerial-title h2{font-size:23px;letter-spacing:3px;font-weight:400;text-transform:uppercase;font-family:var(--font-display)}
+.aerial-title p{font-size:12px;opacity:0.7;margin-top:5px;letter-spacing:0.8px}
+
+/* Hotspots */
+.hotspot-container{position:absolute;inset:0;pointer-events:none}
+.hotspot{position:absolute;transform:translate(-50%,-50%);cursor:pointer;transition:all var(--t);pointer-events:all}
+.hotspot-ring{
+  width:66px;height:66px;border-radius:50%;
+  border:2px solid rgba(255,255,255,0.55);
+  background:rgba(0,33,87,0.68);backdrop-filter:blur(6px);
+  display:flex;align-items:center;justify-content:center;
+  transition:all .25s;position:relative;
+}
+.hotspot:hover .hotspot-ring{background:rgba(145,127,46,0.88);border-color:var(--gold);transform:scale(1.12);box-shadow:0 0 28px rgba(145,127,46,0.5)}
+.hotspot-ring::after{content:"";position:absolute;inset:-9px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.2);animation:pulse 2.8s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:0.45}50%{transform:scale(1.22);opacity:0.08}}
+.hotspot-icon-svg{width:28px;height:28px;color:var(--white)}
+.hotspot-label{
+  position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%);
+  background:rgba(0,21,64,0.94);color:var(--white);padding:5px 13px;
+  border-radius:var(--radius-sm);font-size:12px;font-weight:700;white-space:nowrap;
+  border:1px solid rgba(145,127,46,0.4);letter-spacing:0.5px;box-shadow:var(--shadow);
+}
+
+/* ── SECTION SELECTOR (vertical) ─────────────────────────────────────────── */
+.section-selector{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  display:flex;flex-direction:column;gap:12px;align-items:center;
+}
+.section-btn{
+  padding:11px 36px;background:rgba(0,21,64,0.88);color:var(--white);
+  border:1.5px solid rgba(145,127,46,0.55);border-radius:var(--radius);
+  cursor:pointer;font-family:var(--font);font-size:14px;font-weight:700;
+  backdrop-filter:blur(8px);transition:all .22s;letter-spacing:0.8px;
+  box-shadow:var(--shadow);text-align:center;min-width:180px;
+}
+.section-btn:hover{background:var(--gold);border-color:var(--gold);transform:scale(1.05);box-shadow:var(--shadow-lg)}
+.section-btn:active{transform:scale(0.99)}
+
+/* ── FLOOR TABS (aerial overlay) ─────────────────────────────────────────── */
+.floor-tabs{
+  position:absolute;top:24px;left:50%;transform:translateX(-50%);
+  display:flex;gap:6px;background:rgba(0,0,0,0.6);padding:5px;
+  border-radius:var(--radius);backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,0.07);
+}
+.floor-tab{
+  padding:8px 24px;border-radius:6px;cursor:pointer;font-size:13px;
+  font-weight:700;color:rgba(255,255,255,0.6);transition:all .15s;
+  border:none;background:transparent;font-family:var(--font);letter-spacing:0.4px;
+}
+.floor-tab.active{background:var(--gold);color:var(--white);box-shadow:0 2px 8px rgba(0,0,0,0.25)}
+.floor-tab:hover:not(.active){background:rgba(255,255,255,0.12);color:var(--white)}
+
+/* Back button */
+.back-btn{
+  position:absolute;top:22px;left:20px;display:flex;align-items:center;gap:6px;
+  background:rgba(0,21,64,0.9);color:var(--white);border:1px solid rgba(255,255,255,0.14);
+  padding:8px 15px;border-radius:var(--radius-sm);cursor:pointer;font-family:var(--font);
+  font-size:13px;font-weight:600;backdrop-filter:blur(8px);transition:all var(--t);box-shadow:var(--shadow-sm);
+}
+.back-btn:hover{background:rgba(0,21,64,1);border-color:var(--gold);color:var(--gold-light)}
+
+/* ── FLOOR PANEL (bottom-sheet overlay on aerial) ────────────────────────── */
+#floor-panel{
+  position:absolute;bottom:0;left:0;right:0;
+  height:72%;
+  background:rgba(0,21,64,0.97);
+  border-top:2px solid var(--gold);
+  transform:translateY(100%);
+  transition:transform .38s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column;
+  z-index:50;
+  box-shadow:0 -8px 32px rgba(0,0,0,0.4);
+  backdrop-filter:blur(2px);
+}
+#floor-panel.open{transform:translateY(0)}
+#floor-panel-header{
+  display:flex;align-items:center;gap:14px;padding:10px 20px;
+  border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;
+}
+#floor-panel-title{font-size:15px;font-weight:700;color:var(--white);flex:1;letter-spacing:0.3px}
+#floor-panel-sub{font-size:11px;color:rgba(255,255,255,0.5);margin-top:1px}
+#floor-panel-occ{display:flex;gap:10px;align-items:center;font-size:12px;color:var(--gold-light)}
+#floor-panel-close{
+  background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);
+  color:rgba(255,255,255,0.7);border-radius:var(--radius-sm);padding:6px 12px;
+  cursor:pointer;font-family:var(--font);font-size:12px;font-weight:600;
+  transition:all var(--t);
+}
+#floor-panel-close:hover{background:rgba(255,255,255,0.16);color:var(--white)}
+#floor-panel-content{
+  flex:1;overflow-y:auto;padding:16px 20px;
+  display:flex;flex-wrap:wrap;gap:16px;align-content:flex-start;
+}
+#floor-panel-legend{
+  display:flex;flex-wrap:wrap;gap:6px;padding:8px 20px;
+  background:rgba(0,0,0,0.2);flex-shrink:0;border-top:1px solid rgba(255,255,255,0.06);
+}
+
+/* ── ZONE CARD ────────────────────────────────────────────────────────────── */
+.zone-card{
+  background:rgba(255,255,255,0.05);border-radius:var(--radius);
+  border:1px solid rgba(255,255,255,0.1);min-width:260px;flex:1;
+  display:flex;flex-direction:column;overflow:hidden;
+  transition:box-shadow var(--t),border-color var(--t);
+}
+.zone-card:hover{border-color:rgba(145,127,46,0.4);box-shadow:0 4px 16px rgba(0,0,0,0.3)}
+.zone-header{
+  background:linear-gradient(135deg,rgba(0,45,112,0.9) 0%,rgba(0,61,138,0.9) 100%);
+  padding:10px 14px;display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid rgba(255,255,255,0.07);
+}
+.zone-name{font-size:13px;font-weight:700;color:var(--white);letter-spacing:0.2px}
+.zone-occ-badge{
+  font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700;
+  background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.9);
+}
+.zone-floor-tag{font-size:10px;color:rgba(255,255,255,0.5);margin-top:2px;letter-spacing:0.2px}
+.zone-seats{padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:7px}
+
+/* ── SEAT TILE ────────────────────────────────────────────────────────────── */
+.seat-tile{
+  border-radius:var(--radius);padding:9px 11px;
+  border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);
+  cursor:pointer;transition:all var(--t);position:relative;
+  min-height:66px;display:flex;flex-direction:column;justify-content:space-between;
+}
+.seat-tile:hover{transform:translateY(-2px);box-shadow:var(--shadow);background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2)}
+.seat-tile.dragging{opacity:0.35;transform:scale(0.96)}
+.seat-tile.drag-over{border:2px dashed var(--gold);background:rgba(145,127,46,0.15)}
+.seat-tile[data-status="vacant"]{background:rgba(255,255,255,0.03);border-style:dashed;border-color:rgba(255,255,255,0.08)}
+.seat-tile[data-status="flex"]{background:rgba(107,33,168,0.15);border-color:rgba(167,139,250,0.3)}
+.seat-tile[data-status="incoming"]{background:rgba(30,64,175,0.15);border-color:rgba(147,197,253,0.35)}
+.seat-tile[data-status="retiring"]{background:rgba(146,64,14,0.15);border-color:rgba(252,211,77,0.3)}
+.seat-tile[data-status="tech"]{background:rgba(2,132,199,0.15);border-color:rgba(125,211,252,0.3)}
+.seat-tile.dept-highlight{box-shadow:0 0 0 2.5px var(--gold);border-color:var(--gold)}
+.seat-tile.dept-dim{opacity:0.18}
+.seat-name{font-size:13px;font-weight:700;color:rgba(255,255,255,0.95);line-height:1.2}
+.seat-title{font-size:11px;color:rgba(255,255,255,0.55);margin-top:2px;line-height:1.3}
+.seat-dept-tag{
+  font-size:9px;font-weight:700;margin-top:4px;display:inline-block;
+  padding:2px 8px;border-radius:20px;letter-spacing:0.3px;
+  border:1px solid rgba(0,0,0,0.08);
+}
+.seat-type-tag{font-size:10px;color:rgba(255,255,255,0.35)}
+.seat-status-dot{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%}
+.dot-assigned{background:#4ade80}
+.dot-incoming{background:#60a5fa}
+.dot-retiring{background:#fbbf24}
+.dot-flex{background:#c084fc}
+.dot-vacant{background:rgba(255,255,255,0.25)}
+.dot-tech{background:#38bdf8}
+.seat-note-icon{position:absolute;bottom:5px;right:6px;font-size:11px;color:var(--gold);cursor:pointer;transition:transform var(--t)}
+.seat-note-icon:hover{transform:scale(1.25)}
+.edit-person-link{
+  position:absolute;bottom:5px;left:8px;font-size:10px;color:rgba(255,255,255,0.35);
+  cursor:pointer;transition:color var(--t);text-decoration:underline;text-underline-offset:2px;
+}
+.edit-person-link:hover{color:var(--gold-light)}
+
+/* ── DEPT LEGEND ──────────────────────────────────────────────────────────── */
+.legend-item{
+  display:flex;align-items:center;gap:5px;font-size:11px;font-weight:500;
+  padding:4px 10px;border-radius:20px;cursor:pointer;
+  border:1.5px solid transparent;transition:all var(--t);color:rgba(255,255,255,0.75);
+}
+.legend-item:hover{border-color:rgba(255,255,255,0.3);background:rgba(255,255,255,0.07)}
+.legend-item.active-filter{border-color:var(--gold);font-weight:700;background:rgba(145,127,46,0.18);color:var(--gold-light)}
+.legend-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;border:1px solid rgba(255,255,255,0.15)}
+.legend-label-hdr{font-size:10px;color:rgba(255,255,255,0.35);align-self:center;margin-right:4px}
+
+/* ── SIDEBAR ──────────────────────────────────────────────────────────────── */
+#sidebar{
+  position:fixed;top:0;right:0;width:320px;height:100vh;
+  background:var(--navy-dark);border-left:1px solid rgba(145,127,46,0.35);
+  transform:translateX(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);
+  z-index:300;display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,0.5);
+}
+#sidebar.open{transform:translateX(0)}
+#sidebar-header{
+  padding:14px 18px;background:var(--navy);border-bottom:2px solid var(--gold);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+#sidebar-header h3{font-size:14px;font-weight:700;color:var(--white);letter-spacing:0.5px}
+#sidebar-close{
+  background:none;border:none;color:rgba(255,255,255,0.6);font-size:18px;
+  cursor:pointer;padding:2px 4px;border-radius:4px;transition:all var(--t);
+}
+#sidebar-close:hover{color:var(--white);background:rgba(255,255,255,0.1)}
+#sidebar-tabs{display:flex;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0}
+.sidebar-tab{
+  flex:1;padding:10px;text-align:center;font-size:12px;font-weight:700;
+  color:rgba(255,255,255,0.5);cursor:pointer;transition:all var(--t);border-bottom:2px solid transparent;
+  letter-spacing:0.4px;background:none;border-top:none;border-left:none;border-right:none;
+  font-family:var(--font);
+}
+.sidebar-tab.active{color:var(--gold-light);border-bottom-color:var(--gold)}
+.sidebar-tab:hover:not(.active){color:rgba(255,255,255,0.8);background:rgba(255,255,255,0.04)}
+#sidebar-body{flex:1;overflow-y:auto;padding:12px}
+
+/* Sidebar building tree */
+.sb-building{margin-bottom:12px}
+.sb-building-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 12px;background:rgba(255,255,255,0.06);border-radius:var(--radius-sm);
+  cursor:pointer;transition:background var(--t);font-size:13px;font-weight:700;color:var(--white);
+}
+.sb-building-hdr:hover{background:rgba(255,255,255,0.1)}
+.sb-occ-mini{font-size:11px;font-weight:700;color:var(--gold-light)}
+.sb-floor{padding:6px 8px 4px 20px}
+.sb-floor-hdr{font-size:11px;font-weight:700;color:rgba(255,255,255,0.5);letter-spacing:0.5px;text-transform:uppercase;padding:4px 0 2px}
+.sb-zone{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:4px 8px;border-radius:4px;margin-bottom:2px;transition:background var(--t);
+  cursor:pointer;font-size:12px;color:rgba(255,255,255,0.75);
+}
+.sb-zone:hover{background:rgba(255,255,255,0.06);color:var(--white)}
+.sb-zone-occ{font-size:11px;color:rgba(255,255,255,0.4)}
+
+/* Sidebar people list */
+.sb-person{
+  display:flex;align-items:center;gap:10px;padding:8px 10px;
+  border-radius:var(--radius-sm);margin-bottom:4px;transition:background var(--t);
+  cursor:pointer;border:1px solid transparent;
+}
+.sb-person:hover{background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.08)}
+.sb-person-avatar{
+  width:32px;height:32px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:var(--white);
+}
+.sb-person-info{flex:1;min-width:0}
+.sb-person-name{font-size:13px;font-weight:700;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-person-sub{font-size:11px;color:rgba(255,255,255,0.45);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-section-hdr{
+  font-size:11px;font-weight:700;color:rgba(255,255,255,0.35);
+  letter-spacing:0.8px;text-transform:uppercase;padding:10px 4px 6px;
+}
+.sb-unassigned-badge{
+  display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;
+  font-weight:700;background:rgba(248,113,113,0.2);color:#fca5a5;margin-left:6px;
+}
+.sb-search{
+  width:100%;padding:8px 12px;background:rgba(255,255,255,0.07);
+  border:1.5px solid rgba(255,255,255,0.12);border-radius:var(--radius-sm);
+  color:var(--white);font-family:var(--font);font-size:13px;outline:none;
+  margin-bottom:10px;transition:border-color var(--t);
+}
+.sb-search::placeholder{color:rgba(255,255,255,0.3)}
+.sb-search:focus{border-color:var(--gold)}
+
+/* ── MODALS ───────────────────────────────────────────────────────────────── */
+.modal-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);
+  z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(5px);
+}
+.modal-overlay.open{display:flex}
+.modal{
+  background:var(--white);border-radius:var(--radius-lg);width:440px;max-width:92vw;
+  box-shadow:var(--shadow-lg);overflow:hidden;animation:modalIn .2s ease;
+}
+@keyframes modalIn{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal-header{
+  background:linear-gradient(135deg,var(--navy) 0%,var(--navy-mid) 100%);
+  color:var(--white);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;
+}
+.modal-header h3{font-size:15px;font-weight:700;letter-spacing:0.2px}
+.modal-close{background:none;border:none;color:rgba(255,255,255,0.6);font-size:18px;cursor:pointer;padding:2px 4px;border-radius:4px;transition:all var(--t)}
+.modal-close:hover{color:var(--white);background:rgba(255,255,255,0.12)}
+.modal-body{padding:20px;display:flex;flex-direction:column;gap:14px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group label{font-size:11px;font-weight:700;color:var(--navy);letter-spacing:0.6px;text-transform:uppercase}
+.form-group input,.form-group select,.form-group textarea{
+  padding:9px 12px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);
+  font-family:var(--font);font-size:14px;outline:none;transition:border var(--t);color:var(--gray-800);
+}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{
+  border-color:var(--navy);box-shadow:0 0 0 3px rgba(0,33,87,0.09);
+}
+.form-group textarea{resize:vertical;min-height:72px}
+.modal-footer{
+  padding:14px 20px;border-top:1px solid var(--gray-200);
+  display:flex;gap:8px;justify-content:flex-end;background:var(--gray-50);
+}
+.btn{padding:9px 20px;border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;border:none;transition:all var(--t);letter-spacing:0.2px}
+.btn-primary{background:var(--navy);color:var(--white)}
+.btn-primary:hover{background:var(--navy-dark);transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,0.2)}
+.btn-danger{background:#DC2626;color:var(--white)}
+.btn-danger:hover{background:#b91c1c}
+.btn-secondary{background:var(--gray-200);color:var(--gray-800)}
+.btn-secondary:hover{background:var(--gray-300)}
+
+/* Toast */
+#toast{
+  position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(14px);
+  background:var(--navy-dark);color:var(--white);padding:10px 22px;
+  border-radius:var(--radius);font-size:14px;border-left:4px solid var(--gold);
+  box-shadow:var(--shadow-lg);opacity:0;transition:opacity .3s,transform .3s;
+  z-index:3000;pointer-events:none;white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* Image placeholder */
+.img-placeholder{
+  width:100%;height:100%;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#0f2714 0%,#1e3a20 35%,#002157 70%,#0d1a3a 100%);
+  color:rgba(255,255,255,0.7);text-align:center;gap:14px;
+}
+.img-placeholder .img-icon{font-size:52px;opacity:0.4}
+.img-placeholder p{font-size:14px;opacity:0.6;max-width:300px;line-height:1.6}
+.img-placeholder small{font-size:11px;opacity:0.35;font-family:monospace}
+
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.25)}
+</style>
+</head>
+<body>
+<div id="sp-loading"><div class="sp-spinner"></div><span class="sp-loading-text">Loading seating data…</span></div>
+<div id="app">
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div id="logo">
+    <div id="logo-shield">✝</div>
+    <div id="logo-text">
+      <strong>AUGUSTINE INSTITUTE</strong>
+      Interactive Seating Map
+    </div>
+  </div>
+  <div id="breadcrumb">
+    <span class="bc-item active" onclick="goHome()" id="bc-home">Campus</span>
+  </div>
+  <div id="search-wrap">
+    <svg id="search-icon-svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
+    <input id="search" type="text" placeholder="Search people…" oninput="onSearch(this.value)" autocomplete="off">
+    <div id="search-results"></div>
+  </div>
+  <div id="topbar-controls">
+    <select id="dept-filter" onchange="filterDept(this.value)">
+      <option value="">All Departments</option>
+      <option>Executive Office</option><option>Mission Advancement</option>
+      <option>Campus Operations</option><option>Conferences</option>
+      <option>GST</option><option>HR</option><option>Finance</option>
+      <option>Technology</option><option>Marketing</option>
+      <option>Content</option><option>Product</option>
+      <option>Sales</option><option>Studios</option>
+    </select>
+    <button class="topbar-btn" onclick="toggleSidebar()" id="btn-sidebar" title="People & Spaces">
+      <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+      Roster
+    </button>
+    <button class="topbar-btn" id="btn-add-person" onclick="openAddPerson()">
+      <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z"/></svg>
+      Add Person
+    </button>
+  </div>
+</div>
+
+<!-- OCCUPANCY BAR -->
+<div id="occ-bar">
+  <div class="occ-item">
+    <span class="occ-label">Campus</span>
+    <div class="occ-bar-track"><div class="occ-bar-fill" id="occ-campus"></div></div>
+    <span class="occ-pct" id="occ-campus-pct"></span>
+  </div>
+  <div class="occ-divider"></div>
+  <div class="occ-item" id="occ-section-wrap" style="display:none">
+    <span class="occ-label" id="occ-section-label">Section</span>
+    <div class="occ-bar-track"><div class="occ-bar-fill" id="occ-section"></div></div>
+    <span class="occ-pct" id="occ-section-pct"></span>
+  </div>
+  <div class="occ-divider" id="occ-div2" style="display:none"></div>
+  <div class="occ-item" id="occ-floor-wrap" style="display:none">
+    <span class="occ-label" id="occ-floor-label">Floor</span>
+    <div class="occ-bar-track"><div class="occ-bar-fill" id="occ-floor"></div></div>
+    <span class="occ-pct" id="occ-floor-pct"></span>
+  </div>
+</div>
+
+<!-- STAGE -->
+<div id="stage">
+
+  <!-- HOME: wide campus -->
+  <div class="view active" id="view-home">
+    <div class="aerial" id="aerial-home" style="background-image:url('images/campus-wide.jpg')">
+      <div class="img-placeholder" id="ph-home" style="display:none">
+        <div class="img-icon">🛰️</div><p>Campus Wide Aerial View</p><small>images/campus-wide.jpg</small>
+      </div>
+      <div class="aerial-overlay"></div>
+      <div class="aerial-title"><h2>Augustine Institute</h2><p>Select a building to explore</p></div>
+      <div class="hotspot-container">
+        <div class="hotspot" id="hs-main" style="left:32%;top:50%" data-building="main" onclick="goBuilding(this.dataset.building)">
+          <div class="hotspot-ring">
+            <svg class="hotspot-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z"/></svg>
+          </div>
+          <div class="hotspot-label">Main Campus</div>
+        </div>
+        <div class="hotspot" id="hs-carriage" style="left:68%;top:50%" data-building="carriage" onclick="goBuilding(this.dataset.building)">
+          <div class="hotspot-ring">
+            <svg class="hotspot-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"/></svg>
+          </div>
+          <div class="hotspot-label">Carriage House</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN CAMPUS: mid aerial + vertical section nav -->
+  <div class="view hidden" id="view-main">
+    <div class="aerial" id="aerial-main" style="background-image:url('images/campus-mid.jpg')">
+      <div class="img-placeholder" id="ph-main" style="display:none">
+        <div class="img-icon">🏛️</div><p>Main Campus — Select a Section</p><small>images/campus-mid.jpg</small>
+      </div>
+      <div class="aerial-overlay"></div>
+      <button class="back-btn" onclick="goHome()">
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L7.414 9H15a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
+        Campus
+      </button>
+      <div class="aerial-title"><h2>Main Campus</h2><p>Select a section</p></div>
+      <!-- Vertical section selector: North top, Central middle, South bottom -->
+      <div class="section-selector">
+        <button class="section-btn" onclick="goSection('north')">North ▲</button>
+        <button class="section-btn" onclick="goSection('central')">Central</button>
+        <button class="section-btn" onclick="goSection('south')">South ▼</button>
+      </div>
+      <!-- Floor panel lives inside aerial views so aerial stays visible -->
+      <div id="floor-panel-main" class="aerial-floor-panel" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- SECTION VIEW (south / central / north) -->
+  <div class="view hidden" id="view-section">
+    <div class="aerial" id="aerial-section">
+      <div class="img-placeholder" id="ph-section" style="display:none">
+        <div class="img-icon">📍</div><p id="ph-section-label">Section View</p><small id="ph-section-file"></small>
+      </div>
+      <div class="aerial-overlay"></div>
+      <button class="back-btn" id="section-back-btn" onclick="goBuilding('main')">
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L7.414 9H15a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
+        Main Campus
+      </button>
+      <div class="aerial-title"><h2 id="section-title-text"></h2><p>Select a floor</p></div>
+      <div class="floor-tabs" id="floor-tabs"></div>
+      <!-- Floor panel overlay inside this section view -->
+      <div id="floor-panel" style="">
+        <div id="floor-panel-header">
+          <div style="flex:1">
+            <div id="floor-panel-title"></div>
+            <div id="floor-panel-sub"></div>
+          </div>
+          <div id="floor-panel-occ"></div>
+          <button id="floor-panel-close" onclick="closeFloorPanel()">✕ Close</button>
+        </div>
+        <div id="floor-panel-content"></div>
+        <div id="floor-panel-legend"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CARRIAGE HOUSE -->
+  <div class="view hidden" id="view-carriage">
+    <div class="aerial" id="aerial-carriage" style="background-image:url('images/carriage-house.jpg')">
+      <div class="img-placeholder" id="ph-carriage" style="display:none">
+        <div class="img-icon">🎬</div><p>Carriage House</p><small>images/carriage-house.jpg</small>
+      </div>
+      <div class="aerial-overlay"></div>
+      <button class="back-btn" onclick="goHome()">
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L7.414 9H15a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
+        Campus
+      </button>
+      <div class="aerial-title"><h2>Carriage House</h2><p>Select a floor</p></div>
+      <div class="floor-tabs" id="ch-floor-tabs">
+        <button class="floor-tab" onclick="goFloor('ch','1F')">1st Floor — Open Concept</button>
+        <button class="floor-tab" onclick="goFloor('ch','2F')">2nd Floor — Studios</button>
+      </div>
+      <!-- Floor panel overlay inside carriage view -->
+      <div id="floor-panel-ch" style="display:none"></div>
+    </div>
+  </div>
+
+</div><!-- /stage -->
+</div><!-- /app -->
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div id="sidebar-header">
+    <h3>🏢 Spaces &amp; Roster</h3>
+    <button id="sidebar-close" onclick="toggleSidebar()">✕</button>
+  </div>
+  <div id="sidebar-tabs">
+    <button class="sidebar-tab active" onclick="showSidebarTab('spaces')" id="stab-spaces">Spaces</button>
+    <button class="sidebar-tab" onclick="showSidebarTab('people')" id="stab-people">People</button>
+  </div>
+  <div id="sidebar-body"></div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-seat">
+  <div class="modal">
+    <div class="modal-header"><h3 id="modal-seat-title">Seat Details</h3><button class="modal-close" onclick="closeModal('modal-seat')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>Assign Person</label><select id="seat-person-select"></select></div>
+      <div class="form-group"><label>Seat Type</label><input id="seat-type-input" type="text"></div>
+      <div class="form-group"><label>Status</label>
+        <select id="seat-status-select">
+          <option value="assigned">Assigned</option><option value="flex">Flex</option>
+          <option value="vacant">Vacant</option><option value="incoming">Incoming</option>
+          <option value="retiring">Retiring</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Seat Note</label><textarea id="seat-note-input" placeholder="Optional note about this seat…"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger" onclick="clearSeat()">Clear Seat</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-seat')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSeat()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-person">
+  <div class="modal">
+    <div class="modal-header"><h3 id="modal-person-title">Add Person</h3><button class="modal-close" onclick="closeModal('modal-person')">✕</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group"><label>Last Name</label><input id="person-last" type="text" placeholder="Last name"></div>
+        <div class="form-group"><label>First Name</label><input id="person-first" type="text" placeholder="First name"></div>
+      </div>
+      <div class="form-group"><label>Title</label><input id="person-title" type="text" placeholder="Job title"></div>
+      <div class="form-group"><label>Department</label>
+        <select id="person-dept">
+          <option>Executive Office</option><option>Mission Advancement</option>
+          <option>Campus Operations</option><option>Conferences</option>
+          <option>GST</option><option>HR</option><option>Finance</option>
+          <option>Technology</option><option>Marketing</option>
+          <option>Content</option><option>Product</option><option>Sales</option><option>Studios</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Status</label>
+        <select id="person-status">
+          <option value="assigned">Assigned</option><option value="incoming">Incoming</option><option value="retiring">Retiring</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Notes</label><textarea id="person-note" placeholder="Optional notes…"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger" id="btn-delete-person" onclick="deletePerson()" style="display:none">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-person')">Cancel</button>
+      <button class="btn btn-primary" onclick="savePerson()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+const PEOPLE_INIT = [
+  {
+    "id": "p1",
+    "last": "Gray",
+    "first": "Timothy",
+    "title": "President",
+    "dept": "Executive Office"
+  },
+  {
+    "id": "p2",
+    "last": "Nardoni",
+    "first": "Cory",
+    "title": "CFO",
+    "dept": "Executive Office"
+  },
+  {
+    "id": "p3",
+    "last": "Yallaly",
+    "first": "William",
+    "title": "Chief of Staff",
+    "dept": "Executive Office"
+  },
+  {
+    "id": "p4",
+    "last": "Kemp",
+    "first": "Taylor",
+    "title": "SVP Content & Growth",
+    "dept": "Product"
+  },
+  {
+    "id": "p5",
+    "last": "Akers",
+    "first": "Benjamin",
+    "title": "Chief Mission Officer",
+    "dept": "Executive Office"
+  },
+  {
+    "id": "p6",
+    "last": "Box",
+    "first": "Karen",
+    "title": "VP Human Resources",
+    "dept": "HR"
+  },
+  {
+    "id": "p7",
+    "last": "Schulz",
+    "first": "Erin",
+    "title": "Senior HR Generalist",
+    "dept": "HR"
+  },
+  {
+    "id": "p8",
+    "last": "Allmon",
+    "first": "Jessie",
+    "title": "HR Generalist",
+    "dept": "HR"
+  },
+  {
+    "id": "p9",
+    "last": "Coker",
+    "first": "Samantha",
+    "title": "VP Mission Advancement",
+    "dept": "Mission Advancement"
+  },
+  {
+    "id": "p10",
+    "last": "Skinner",
+    "first": "Austin",
+    "title": "Senior Director, Major Gifts",
+    "dept": "Mission Advancement"
+  },
+  {
+    "id": "p11",
+    "last": "Lally",
+    "first": "Sarah",
+    "title": "Advancement Communications Manager",
+    "dept": "Mission Advancement"
+  },
+  {
+    "id": "p12",
+    "last": "Chitwood",
+    "first": "Jeff",
+    "title": "Junior Gift Officer",
+    "dept": "Mission Advancement"
+  },
+  {
+    "id": "p13",
+    "last": "Doucette",
+    "first": "Rose",
+    "title": "Mission Advancement Officer \u2013 Grants",
+    "dept": "Mission Advancement"
+  },
+  {
+    "id": "p14",
+    "last": "Handley",
+    "first": "Dennis",
+    "title": "Advancement Analyst",
+    "dept": "Mission Advancement"
+  },
+  {
+    "id": "p15",
+    "last": "Jablonski",
+    "first": "Laura",
+    "title": "Mission Circle Coordinator",
+    "dept": "Mission Advancement"
+  },
+  {
+    "id": "p16",
+    "last": "McNamara",
+    "first": "Mary Katherine",
+    "title": "Asst Pilgrimage Coordinator",
+    "dept": "Mission Advancement"
+  },
+  {
+    "id": "p17",
+    "last": "Gray",
+    "first": "Kris",
+    "title": "Pilgrimage Coordinator",
+    "dept": "Mission Advancement",
+    "status": "retiring"
+  },
+  {
+    "id": "p18",
+    "last": "Darlington",
+    "first": "Cheryl",
+    "title": "Campus Operations Manager",
+    "dept": "Campus Operations"
+  },
+  {
+    "id": "p19",
+    "last": "Daum",
+    "first": "Christopher",
+    "title": "Campus Support Lead",
+    "dept": "Campus Operations"
+  },
+  {
+    "id": "p20",
+    "last": "Whittier",
+    "first": "Victor",
+    "title": "Campus Support Specialist",
+    "dept": "Campus Operations"
+  },
+  {
+    "id": "p21",
+    "last": "Morris",
+    "first": "Patrick",
+    "title": "Campus Support Lead",
+    "dept": "Conferences"
+  },
+  {
+    "id": "p22",
+    "last": "Goodwin",
+    "first": "Tristan",
+    "title": "Event Technical Specialist",
+    "dept": "Conferences"
+  },
+  {
+    "id": "p23",
+    "last": "Weinel",
+    "first": "Elizabeth",
+    "title": "Campus Support Specialist",
+    "dept": "Conferences"
+  },
+  {
+    "id": "p24",
+    "last": "Harrington",
+    "first": "Kristen",
+    "title": "Executive Pastry Chef",
+    "dept": "Conferences"
+  },
+  {
+    "id": "p25",
+    "last": "Eusebio",
+    "first": "Manuel",
+    "title": "Director of Culinary",
+    "dept": "Conferences"
+  },
+  {
+    "id": "p26",
+    "last": "Niemann",
+    "first": "Sam",
+    "title": "Chef Manager",
+    "dept": "Campus Operations"
+  },
+  {
+    "id": "p27",
+    "last": "Kang",
+    "first": "Je",
+    "title": "Chef Manager",
+    "dept": "Conferences"
+  },
+  {
+    "id": "p28",
+    "last": "Hoscher",
+    "first": "Elisabeth",
+    "title": "VP Hospitality & Facilities",
+    "dept": "Campus Operations"
+  },
+  {
+    "id": "p29",
+    "last": "Coney",
+    "first": "Joyce",
+    "title": "Food Service Director",
+    "dept": "Campus Operations"
+  },
+  {
+    "id": "p30",
+    "last": "Rector",
+    "first": "Robert",
+    "title": "Food & Beverage Asst Manager",
+    "dept": "Campus Operations"
+  },
+  {
+    "id": "p31",
+    "last": "Woods",
+    "first": "Brian",
+    "title": "Food Service Lead",
+    "dept": "Campus Operations"
+  },
+  {
+    "id": "p32",
+    "last": "Woods",
+    "first": "Jamie",
+    "title": "Food Service Lead",
+    "dept": "Campus Operations"
+  },
+  {
+    "id": "p33",
+    "last": "Voss",
+    "first": "Julie",
+    "title": "Front Office Lead",
+    "dept": "Conferences"
+  },
+  {
+    "id": "p34",
+    "last": "Williams",
+    "first": "Lynnette",
+    "title": "Rooms Division Supervisor",
+    "dept": "Conferences"
+  },
+  {
+    "id": "p35",
+    "last": "Wunderlich",
+    "first": "Sarah",
+    "title": "Senior Event Planner",
+    "dept": "Campus Operations"
+  },
+  {
+    "id": "p36",
+    "last": "Gonzales",
+    "first": "Sonnelle",
+    "title": "Director of Events & Hospitality",
+    "dept": "Conferences"
+  },
+  {
+    "id": "p37",
+    "last": "Eschelbach",
+    "first": "Amy",
+    "title": "Sr. Conference Planning Manager",
+    "dept": "Conferences"
+  },
+  {
+    "id": "p38",
+    "last": "Cwiklowski",
+    "first": "Lisa",
+    "title": "Events Manager",
+    "dept": "Conferences"
+  },
+  {
+    "id": "p39",
+    "last": "Allgeyer",
+    "first": "Jacob",
+    "title": "Front Office Manager",
+    "dept": "Conferences"
+  },
+  {
+    "id": "p40",
+    "last": "McKeown",
+    "first": "Rosanna",
+    "title": "Events Coordinator",
+    "dept": "Conferences"
+  },
+  {
+    "id": "p41",
+    "last": "Smith",
+    "first": "Riley",
+    "title": "Events Coordinator",
+    "dept": "Conferences"
+  },
+  {
+    "id": "p42",
+    "last": "Carothers",
+    "first": "Donna",
+    "title": "Campus Support Specialist",
+    "dept": "Conferences"
+  },
+  {
+    "id": "p43",
+    "last": "Tindall",
+    "first": "Nicole",
+    "title": "Senior Event Planner",
+    "dept": "Conferences",
+    "note": "Displaced from enclosed office by Allgeyer"
+  },
+  {
+    "id": "p44",
+    "last": "Sehorn",
+    "first": "John",
+    "title": "Dean & Chief Academic Officer",
+    "dept": "GST"
+  },
+  {
+    "id": "p45",
+    "last": "Gillette",
+    "first": "Katie",
+    "title": "VP Enrollment Management",
+    "dept": "GST",
+    "note": "Relocated from Faculty Wing"
+  },
+  {
+    "id": "p46",
+    "last": "Vennerstrom",
+    "first": "Carl",
+    "title": "Asst Dean of Resident Students",
+    "dept": "GST"
+  },
+  {
+    "id": "p47",
+    "last": "Amadi",
+    "first": "Kenneth",
+    "title": "Director Church Life Africa & Asst Prof",
+    "dept": "GST"
+  },
+  {
+    "id": "p48",
+    "last": "Gilmore",
+    "first": "Rachel",
+    "title": "Director of Admissions & Marketing",
+    "dept": "GST"
+  },
+  {
+    "id": "p49",
+    "last": "Darr",
+    "first": "Charles",
+    "title": "Studios Operator",
+    "dept": "Studios",
+    "note": "Control room"
+  },
+  {
+    "id": "p50",
+    "last": "Barber",
+    "first": "Michael",
+    "title": "Professor of Theology",
+    "dept": "GST",
+    "note": "Relocated to Horseshoe"
+  },
+  {
+    "id": "p51",
+    "last": "Blum",
+    "first": "Christopher",
+    "title": "Professor of Philosophy",
+    "dept": "GST"
+  },
+  {
+    "id": "p52",
+    "last": "Innerst",
+    "first": "Sean",
+    "title": "Asst Prof of Moral Theology",
+    "dept": "GST"
+  },
+  {
+    "id": "p53",
+    "last": "Juge",
+    "first": "Jean-Paul",
+    "title": "Teaching Fellow",
+    "dept": "GST"
+  },
+  {
+    "id": "p54",
+    "last": "Klein",
+    "first": "Elizabeth",
+    "title": "Associate Professor",
+    "dept": "GST"
+  },
+  {
+    "id": "p55",
+    "last": "Lehman",
+    "first": "Jeff",
+    "title": "Professor of Philosophy & Theology",
+    "dept": "GST"
+  },
+  {
+    "id": "p56",
+    "last": "McGrew",
+    "first": "Israel",
+    "title": "Asst Prof of Theology",
+    "dept": "GST"
+  },
+  {
+    "id": "p57",
+    "last": "Mooney",
+    "first": "Christopher",
+    "title": "Asst Prof of Theology",
+    "dept": "GST"
+  },
+  {
+    "id": "p58",
+    "last": "Moser",
+    "first": "John",
+    "title": "Asst Prof of Theology",
+    "dept": "GST"
+  },
+  {
+    "id": "p59",
+    "last": "Saner",
+    "first": "Andrea",
+    "title": "Asst Prof of Moral Theology",
+    "dept": "GST"
+  },
+  {
+    "id": "p60",
+    "last": "Seeley",
+    "first": "Andrew",
+    "title": "Visiting Prof of Theology",
+    "dept": "GST"
+  },
+  {
+    "id": "p61",
+    "last": "Tegha Afuhwi",
+    "first": "Nji",
+    "title": "Asst Prof of Theology",
+    "dept": "GST"
+  },
+  {
+    "id": "p62",
+    "last": "Le Grand",
+    "first": "Robert",
+    "title": "Admissions Counselor",
+    "dept": "GST"
+  },
+  {
+    "id": "p63",
+    "last": "Velazquez",
+    "first": "Harold",
+    "title": "Associate Registrar",
+    "dept": "GST"
+  },
+  {
+    "id": "p64",
+    "last": "Johnson",
+    "first": "Merrill",
+    "title": "Faculty \u2013 Theology",
+    "dept": "GST",
+    "status": "incoming",
+    "note": "Aug 1 start \u2013 hoteling cube"
+  },
+  {
+    "id": "p65",
+    "last": "TBD",
+    "first": "Comms Generalist",
+    "title": "Admissions Generalist",
+    "dept": "GST",
+    "status": "incoming",
+    "note": "May 1 start"
+  },
+  {
+    "id": "p66",
+    "last": "Zawistowicz",
+    "first": "Thomas",
+    "title": "VP Product & Marketing",
+    "dept": "Product"
+  },
+  {
+    "id": "p67",
+    "last": "Bauman",
+    "first": "Seth",
+    "title": "Director of Marketing",
+    "dept": "Marketing"
+  },
+  {
+    "id": "p68",
+    "last": "Leonard",
+    "first": "Luke",
+    "title": "VP of Technology",
+    "dept": "Technology"
+  },
+  {
+    "id": "p69",
+    "last": "Abraham",
+    "first": "Joshua",
+    "title": "Product Marketing Manager",
+    "dept": "Marketing"
+  },
+  {
+    "id": "p70",
+    "last": "Field",
+    "first": "Charles",
+    "title": "Marketing Content Specialist",
+    "dept": "Marketing"
+  },
+  {
+    "id": "p71",
+    "last": "Merkle",
+    "first": "Kayla",
+    "title": "Marketing Generalist",
+    "dept": "Marketing"
+  },
+  {
+    "id": "p72",
+    "last": "Radley",
+    "first": "Molly",
+    "title": "Sr. Graphic Designer",
+    "dept": "Marketing"
+  },
+  {
+    "id": "p73",
+    "last": "Stowe",
+    "first": "Adam",
+    "title": "Social Media Specialist",
+    "dept": "Marketing"
+  },
+  {
+    "id": "p74",
+    "last": "Hefelfinger",
+    "first": "Scott",
+    "title": "Head of Content",
+    "dept": "Content",
+    "note": "Displaced from office by org change"
+  },
+  {
+    "id": "p75",
+    "last": "Hesla",
+    "first": "Erik",
+    "title": "Director of Curriculum",
+    "dept": "Content"
+  },
+  {
+    "id": "p76",
+    "last": "Hanafin",
+    "first": "Bridget",
+    "title": "Curriculum Developer",
+    "dept": "Content"
+  },
+  {
+    "id": "p77",
+    "last": "Mussoline",
+    "first": "Matthew",
+    "title": "Content Platform Specialist",
+    "dept": "Content"
+  },
+  {
+    "id": "p78",
+    "last": "Pratt",
+    "first": "Robert",
+    "title": "Director of Technology Services",
+    "dept": "Technology"
+  },
+  {
+    "id": "p79",
+    "last": "Chesney",
+    "first": "Kristopher",
+    "title": "Manager of Technology Services",
+    "dept": "Technology"
+  },
+  {
+    "id": "p80",
+    "last": "Freebersyser",
+    "first": "Matthew",
+    "title": "Architecture Lead",
+    "dept": "Technology"
+  },
+  {
+    "id": "p81",
+    "last": "Ellis",
+    "first": "John",
+    "title": "Technology New Hire",
+    "dept": "Technology",
+    "status": "incoming"
+  },
+  {
+    "id": "p82",
+    "last": "Lauer",
+    "first": "Matt",
+    "title": "Sr Product Insights Manager",
+    "dept": "Product"
+  },
+  {
+    "id": "p83",
+    "last": "Osborne",
+    "first": "Karine",
+    "title": "FORMED Product Manager",
+    "dept": "Product"
+  },
+  {
+    "id": "p84",
+    "last": "Zelinsky",
+    "first": "Luke",
+    "title": "Product Specialist",
+    "dept": "Product"
+  },
+  {
+    "id": "p85",
+    "last": "Tilton",
+    "first": "Alexandra",
+    "title": "Sr Manager, Product Operations",
+    "dept": "Product"
+  },
+  {
+    "id": "p86",
+    "last": "Broyles",
+    "first": "Justin",
+    "title": "Sales Representative",
+    "dept": "Sales"
+  },
+  {
+    "id": "p87",
+    "last": "Imig",
+    "first": "Nathan",
+    "title": "Sales Operations Analyst",
+    "dept": "Sales"
+  },
+  {
+    "id": "p88",
+    "last": "Perry",
+    "first": "Brittney",
+    "title": "IT HelpDesk Specialist",
+    "dept": "Technology"
+  },
+  {
+    "id": "p89",
+    "last": "Kennedy",
+    "first": "Andrew",
+    "title": "Student Worker",
+    "dept": "Marketing"
+  },
+  {
+    "id": "p90",
+    "last": "Menning",
+    "first": "Justin",
+    "title": "Controller",
+    "dept": "Finance"
+  },
+  {
+    "id": "p91",
+    "last": "Smith",
+    "first": "Sarah",
+    "title": "Assistant Controller",
+    "dept": "Finance"
+  },
+  {
+    "id": "p92",
+    "last": "Carpenter",
+    "first": "Kerry",
+    "title": "Sr. Accountant",
+    "dept": "Finance"
+  },
+  {
+    "id": "p93",
+    "last": "Murillo",
+    "first": "Abraham",
+    "title": "Accounting Clerk",
+    "dept": "Finance"
+  },
+  {
+    "id": "p94",
+    "last": "Pratt",
+    "first": "JJ",
+    "title": "Accounting Clerk",
+    "dept": "Finance"
+  },
+  {
+    "id": "p95",
+    "last": "Wheadon",
+    "first": "Karen",
+    "title": "Lead Business Analyst",
+    "dept": "Finance"
+  },
+  {
+    "id": "p96",
+    "last": "Jacobson",
+    "first": "Austin",
+    "title": "Senior Producer",
+    "dept": "Studios"
+  },
+  {
+    "id": "p97",
+    "last": "Pacheco",
+    "first": "Jordan",
+    "title": "Lead Filmmaker",
+    "dept": "Studios"
+  },
+  {
+    "id": "p98",
+    "last": "Ervin",
+    "first": "Jonathan",
+    "title": "Senior Motion Graphic Designer",
+    "dept": "Studios"
+  },
+  {
+    "id": "p99",
+    "last": "Morales",
+    "first": "Jose",
+    "title": "Lead Animator",
+    "dept": "Studios"
+  },
+  {
+    "id": "p100",
+    "last": "Van Frank",
+    "first": "Madison",
+    "title": "Producer & Talent Coordinator",
+    "dept": "Studios"
+  },
+  {
+    "id": "p101",
+    "last": "Ashman",
+    "first": "Emily",
+    "title": "Producer",
+    "dept": "Studios"
+  },
+  {
+    "id": "p102",
+    "last": "Evens",
+    "first": "Alexander",
+    "title": "Motion GFX Designer",
+    "dept": "Studios"
+  },
+  {
+    "id": "p103",
+    "last": "Santiago",
+    "first": "Solenne",
+    "title": "Editor",
+    "dept": "Studios"
+  },
+  {
+    "id": "p104",
+    "last": "Hanus",
+    "first": "Sean",
+    "title": "Audio Engineer",
+    "dept": "Studios"
+  },
+  {
+    "id": "p105",
+    "last": "Solana",
+    "first": "Louis",
+    "title": "Editor",
+    "dept": "Studios"
+  },
+  {
+    "id": "p106",
+    "last": "Sweeney",
+    "first": "Molly",
+    "title": "Producer",
+    "dept": "Content",
+    "note": "With Studios \u2013 production floor"
+  },
+  {
+    "id": "p107",
+    "last": "Woodward",
+    "first": "Jacob",
+    "title": "Editor",
+    "dept": "Studios",
+    "note": "1F overflow"
+  },
+  {
+    "id": "p108",
+    "last": "Schirra",
+    "first": "Sam",
+    "title": "Student Worker",
+    "dept": "Studios"
+  },
+  {
+    "id": "p109",
+    "last": "Schroeter",
+    "first": "Nicolas",
+    "title": "Student Worker",
+    "dept": "Studios"
+  },
+  {
+    "id": "p110",
+    "last": "Lopez",
+    "first": "Robert Anthony",
+    "title": "Student Worker",
+    "dept": "Studios"
+  }
+];
+const ZONES_INIT = [
+  {
+    "id": "z_exec",
+    "label": "Presidential Suite",
+    "section": "north",
+    "floor": "3F",
+    "building": "main",
+    "capacity": 4,
+    "seats": [
+      {
+        "id": "s1",
+        "type": "Executive Office",
+        "personId": "p1"
+      },
+      {
+        "id": "s2",
+        "type": "Executive Office",
+        "personId": "p2"
+      },
+      {
+        "id": "s3",
+        "type": "Executive Office",
+        "personId": "p3"
+      },
+      {
+        "id": "s4",
+        "type": "Executive Office",
+        "personId": "p4",
+        "note": "Relocated from Engine Room"
+      }
+    ]
+  },
+  {
+    "id": "z_er_off",
+    "label": "Engine Room \u2014 Offices",
+    "section": "north",
+    "floor": "1F",
+    "building": "main",
+    "capacity": 3,
+    "seats": [
+      {
+        "id": "s5",
+        "type": "Private Office",
+        "personId": "p66"
+      },
+      {
+        "id": "s6",
+        "type": "Private Office",
+        "personId": "p67"
+      },
+      {
+        "id": "s7",
+        "type": "Private Office",
+        "personId": "p68"
+      }
+    ]
+  },
+  {
+    "id": "z_er_cub",
+    "label": "Engine Room \u2014 Cubicles",
+    "section": "north",
+    "floor": "1F",
+    "building": "main",
+    "capacity": 20,
+    "seats": [
+      {
+        "id": "s8",
+        "type": "Cubicle",
+        "personId": "p69"
+      },
+      {
+        "id": "s9",
+        "type": "Cubicle",
+        "personId": "p70"
+      },
+      {
+        "id": "s10",
+        "type": "Cubicle",
+        "personId": "p71"
+      },
+      {
+        "id": "s11",
+        "type": "Cubicle",
+        "personId": "p72"
+      },
+      {
+        "id": "s12",
+        "type": "Cubicle",
+        "personId": "p73"
+      },
+      {
+        "id": "s13",
+        "type": "Cubicle",
+        "personId": "p74",
+        "note": "Displaced from office by org change"
+      },
+      {
+        "id": "s14",
+        "type": "Cubicle",
+        "personId": "p75"
+      },
+      {
+        "id": "s15",
+        "type": "Cubicle",
+        "personId": "p76"
+      },
+      {
+        "id": "s16",
+        "type": "Cubicle",
+        "personId": "p77"
+      },
+      {
+        "id": "s17",
+        "type": "Cubicle",
+        "personId": "p78"
+      },
+      {
+        "id": "s18",
+        "type": "Cubicle",
+        "personId": "p79"
+      },
+      {
+        "id": "s19",
+        "type": "Cubicle",
+        "personId": "p80"
+      },
+      {
+        "id": "s20",
+        "type": "Cubicle",
+        "personId": "p81",
+        "status": "incoming"
+      },
+      {
+        "id": "s21",
+        "type": "Cubicle",
+        "personId": "p82"
+      },
+      {
+        "id": "s22",
+        "type": "Cubicle",
+        "personId": "p83"
+      },
+      {
+        "id": "s23",
+        "type": "Cubicle",
+        "personId": "p84"
+      },
+      {
+        "id": "s24",
+        "type": "Cubicle",
+        "personId": "p85"
+      },
+      {
+        "id": "s25",
+        "type": "Cubicle",
+        "personId": "p86"
+      },
+      {
+        "id": "s26",
+        "type": "Cubicle",
+        "personId": "p87"
+      },
+      {
+        "id": "s27",
+        "type": "Cubicle",
+        "personId": null,
+        "status": "vacant",
+        "label": "Sales Rep TBD"
+      }
+    ]
+  },
+  {
+    "id": "z_er_bull",
+    "label": "Engine Room \u2014 Bullpen",
+    "section": "north",
+    "floor": "1F",
+    "building": "main",
+    "capacity": 10,
+    "seats": [
+      {
+        "id": "s28",
+        "type": "Bullpen",
+        "personId": "p88"
+      },
+      {
+        "id": "s29",
+        "type": "Bullpen",
+        "personId": "p89"
+      },
+      {
+        "id": "s30",
+        "type": "Bullpen",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s31",
+        "type": "Bullpen",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s32",
+        "type": "Bullpen",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s33",
+        "type": "Bullpen",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s34",
+        "type": "Bullpen",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s35",
+        "type": "Bullpen",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s36",
+        "type": "Bullpen",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s37",
+        "type": "Bullpen",
+        "personId": null,
+        "status": "flex"
+      }
+    ]
+  },
+  {
+    "id": "z_fac",
+    "label": "Faculty Wing",
+    "section": "north",
+    "floor": "2F",
+    "building": "main",
+    "capacity": 20,
+    "seats": [
+      {
+        "id": "s38",
+        "type": "Faculty Office",
+        "personId": "p51"
+      },
+      {
+        "id": "s39",
+        "type": "Faculty Office",
+        "personId": "p52"
+      },
+      {
+        "id": "s40",
+        "type": "Faculty Office",
+        "personId": "p53"
+      },
+      {
+        "id": "s41",
+        "type": "Faculty Office",
+        "personId": "p54"
+      },
+      {
+        "id": "s42",
+        "type": "Faculty Office",
+        "personId": "p55"
+      },
+      {
+        "id": "s43",
+        "type": "Faculty Office",
+        "personId": "p56"
+      },
+      {
+        "id": "s44",
+        "type": "Faculty Office",
+        "personId": "p57"
+      },
+      {
+        "id": "s45",
+        "type": "Faculty Office",
+        "personId": "p58"
+      },
+      {
+        "id": "s46",
+        "type": "Faculty Office",
+        "personId": "p59"
+      },
+      {
+        "id": "s47",
+        "type": "Faculty Office",
+        "personId": "p60"
+      },
+      {
+        "id": "s48",
+        "type": "Faculty Office",
+        "personId": "p61"
+      },
+      {
+        "id": "s49",
+        "type": "Hoteling Cube",
+        "personId": "p64",
+        "status": "incoming",
+        "note": "Aug 1 start"
+      },
+      {
+        "id": "s50",
+        "type": "Flex/Adjunct",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s51",
+        "type": "Flex/Adjunct",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s52",
+        "type": "Flex/Adjunct",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s53",
+        "type": "Flex/Adjunct",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s54",
+        "type": "Flex/Adjunct",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s55",
+        "type": "Flex/Adjunct",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s56",
+        "type": "Flex/Adjunct",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s57",
+        "type": "Flex/Adjunct",
+        "personId": null,
+        "status": "flex"
+      }
+    ]
+  },
+  {
+    "id": "z_spine",
+    "label": "Spine",
+    "section": "central",
+    "floor": "2F",
+    "building": "main",
+    "capacity": 11,
+    "seats": [
+      {
+        "id": "s58",
+        "type": "Office",
+        "personId": "p18"
+      },
+      {
+        "id": "s59",
+        "type": "Office",
+        "personId": "p19"
+      },
+      {
+        "id": "s60",
+        "type": "Office",
+        "personId": "p20"
+      },
+      {
+        "id": "s61",
+        "type": "Office",
+        "personId": "p21"
+      },
+      {
+        "id": "s62",
+        "type": "Office",
+        "personId": "p22"
+      },
+      {
+        "id": "s63",
+        "type": "Office",
+        "personId": "p23"
+      },
+      {
+        "id": "s64",
+        "type": "Office",
+        "personId": "p24"
+      },
+      {
+        "id": "s65",
+        "type": "Office",
+        "personId": "p25"
+      },
+      {
+        "id": "s66",
+        "type": "Office",
+        "personId": "p26"
+      },
+      {
+        "id": "s67",
+        "type": "Office",
+        "personId": "p27"
+      },
+      {
+        "id": "s68",
+        "type": "Server Room",
+        "personId": null,
+        "status": "tech",
+        "note": "IT infrastructure"
+      }
+    ]
+  },
+  {
+    "id": "z_dev",
+    "label": "Development Wing",
+    "section": "central",
+    "floor": "3F",
+    "building": "main",
+    "capacity": 10,
+    "seats": [
+      {
+        "id": "s69",
+        "type": "Office",
+        "personId": "p9"
+      },
+      {
+        "id": "s70",
+        "type": "Office",
+        "personId": "p10"
+      },
+      {
+        "id": "s71",
+        "type": "Office",
+        "personId": "p11"
+      },
+      {
+        "id": "s72",
+        "type": "Office",
+        "personId": "p12"
+      },
+      {
+        "id": "s73",
+        "type": "Office",
+        "personId": "p13"
+      },
+      {
+        "id": "s74",
+        "type": "Office",
+        "personId": "p14"
+      },
+      {
+        "id": "s75",
+        "type": "Office",
+        "personId": "p15"
+      },
+      {
+        "id": "s76",
+        "type": "Office",
+        "personId": "p16"
+      },
+      {
+        "id": "s77",
+        "type": "Office",
+        "personId": "p17",
+        "status": "retiring",
+        "note": "Seat opens upon retirement"
+      },
+      {
+        "id": "s78",
+        "type": "Office",
+        "personId": null,
+        "status": "vacant",
+        "note": "Opens when Kris Gray retires"
+      }
+    ]
+  },
+  {
+    "id": "z_ops",
+    "label": "Operations",
+    "section": "central",
+    "floor": "3F",
+    "building": "main",
+    "capacity": 8,
+    "seats": [
+      {
+        "id": "s79",
+        "type": "Office",
+        "personId": "p28"
+      },
+      {
+        "id": "s80",
+        "type": "Office",
+        "personId": "p29"
+      },
+      {
+        "id": "s81",
+        "type": "Office",
+        "personId": "p30"
+      },
+      {
+        "id": "s82",
+        "type": "Office",
+        "personId": "p31"
+      },
+      {
+        "id": "s83",
+        "type": "Office",
+        "personId": "p32"
+      },
+      {
+        "id": "s84",
+        "type": "Office",
+        "personId": "p33"
+      },
+      {
+        "id": "s85",
+        "type": "Office",
+        "personId": "p34"
+      },
+      {
+        "id": "s86",
+        "type": "Office",
+        "personId": "p35"
+      }
+    ]
+  },
+  {
+    "id": "z_events",
+    "label": "Events / Entrance",
+    "section": "central",
+    "floor": "3F",
+    "building": "main",
+    "capacity": 8,
+    "seats": [
+      {
+        "id": "s87",
+        "type": "Enclosed Office",
+        "personId": "p39"
+      },
+      {
+        "id": "s88",
+        "type": "Cubicle",
+        "personId": "p36"
+      },
+      {
+        "id": "s89",
+        "type": "Cubicle",
+        "personId": "p37"
+      },
+      {
+        "id": "s90",
+        "type": "Cubicle",
+        "personId": "p38"
+      },
+      {
+        "id": "s91",
+        "type": "Cubicle",
+        "personId": "p40"
+      },
+      {
+        "id": "s92",
+        "type": "Cubicle",
+        "personId": "p41"
+      },
+      {
+        "id": "s93",
+        "type": "Cubicle",
+        "personId": "p42"
+      },
+      {
+        "id": "s94",
+        "type": "Cubicle",
+        "personId": "p43",
+        "note": "Displaced from enclosed office"
+      }
+    ]
+  },
+  {
+    "id": "z_edwing",
+    "label": "Ed Wing",
+    "section": "south",
+    "floor": "1F",
+    "building": "main",
+    "capacity": 3,
+    "seats": [
+      {
+        "id": "s95",
+        "type": "Helpdesk Station",
+        "personId": null,
+        "status": "flex",
+        "note": "IT helpdesk"
+      },
+      {
+        "id": "s96",
+        "type": "Helpdesk Station",
+        "personId": null,
+        "status": "flex",
+        "note": "IT helpdesk"
+      },
+      {
+        "id": "s97",
+        "type": "Small Office",
+        "personId": null,
+        "status": "flex"
+      }
+    ]
+  },
+  {
+    "id": "z_acad",
+    "label": "Academic Wing \u2014 CMO & HR",
+    "section": "south",
+    "floor": "2F",
+    "building": "main",
+    "capacity": 9,
+    "seats": [
+      {
+        "id": "s98",
+        "type": "Office",
+        "personId": "p5"
+      },
+      {
+        "id": "s99",
+        "type": "Office",
+        "personId": "p6"
+      },
+      {
+        "id": "s100",
+        "type": "Office",
+        "personId": "p7"
+      },
+      {
+        "id": "s101",
+        "type": "Office",
+        "personId": "p8"
+      },
+      {
+        "id": "s102",
+        "type": "Office",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s103",
+        "type": "Office",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s104",
+        "type": "Office",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s105",
+        "type": "Office",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s106",
+        "type": "Office",
+        "personId": null,
+        "status": "flex"
+      }
+    ]
+  },
+  {
+    "id": "z_horseshoe",
+    "label": "Horseshoe \u2014 6 Enclosed Offices",
+    "section": "south",
+    "floor": "2F",
+    "building": "main",
+    "capacity": 6,
+    "seats": [
+      {
+        "id": "s107",
+        "type": "Enclosed Office",
+        "personId": "p48"
+      },
+      {
+        "id": "s108",
+        "type": "Enclosed Office",
+        "personId": "p62"
+      },
+      {
+        "id": "s109",
+        "type": "Enclosed Office",
+        "personId": "p63"
+      },
+      {
+        "id": "s110",
+        "type": "Enclosed Office",
+        "personId": "p45",
+        "note": "Relocated from Faculty Wing"
+      },
+      {
+        "id": "s111",
+        "type": "Enclosed Office",
+        "personId": "p65",
+        "status": "incoming",
+        "note": "May 1 start"
+      },
+      {
+        "id": "s112",
+        "type": "Enclosed Office",
+        "personId": "p50",
+        "note": "Relocated to Horseshoe"
+      }
+    ]
+  },
+  {
+    "id": "z_gst",
+    "label": "GST Academic Wing",
+    "section": "south",
+    "floor": "3F",
+    "building": "main",
+    "capacity": 6,
+    "seats": [
+      {
+        "id": "s113",
+        "type": "Office",
+        "personId": "p44"
+      },
+      {
+        "id": "s114",
+        "type": "Office",
+        "personId": "p46"
+      },
+      {
+        "id": "s115",
+        "type": "Office",
+        "personId": "p47"
+      },
+      {
+        "id": "s116",
+        "type": "Office",
+        "personId": "p49",
+        "note": "Control room"
+      },
+      {
+        "id": "s117",
+        "type": "Office",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s118",
+        "type": "Office",
+        "personId": null,
+        "status": "flex"
+      }
+    ]
+  },
+  {
+    "id": "z_finance",
+    "label": "Open Concept — 1st Floor",
+    "section": "ch",
+    "floor": "1F",
+    "building": "carriage",
+    "capacity": 16,
+    "seats": [
+      {
+        "id": "s119",
+        "type": "Open Concept",
+        "personId": "p90"
+      },
+      {
+        "id": "s120",
+        "type": "Open Concept",
+        "personId": "p91"
+      },
+      {
+        "id": "s121",
+        "type": "Open Concept",
+        "personId": "p92"
+      },
+      {
+        "id": "s122",
+        "type": "Open Concept",
+        "personId": "p93"
+      },
+      {
+        "id": "s123",
+        "type": "Open Concept",
+        "personId": "p94"
+      },
+      {
+        "id": "s124",
+        "type": "Open Concept",
+        "personId": "p95"
+      },
+      {
+        "id": "s125",
+        "type": "Production/Overflow",
+        "personId": "p106",
+        "note": "With Studios producers"
+      },
+      {
+        "id": "s126",
+        "type": "Production/Overflow",
+        "personId": "p107",
+        "note": "Editor overflow from 2F"
+      },
+      {
+        "id": "s127",
+        "type": "Flex",
+        "personId": "p108"
+      },
+      {
+        "id": "s128",
+        "type": "Flex",
+        "personId": "p109"
+      },
+      {
+        "id": "s129",
+        "type": "Flex",
+        "personId": "p110"
+      },
+      {
+        "id": "s130",
+        "type": "Flex",
+        "personId": null,
+        "status": "flex"
+      },
+      {
+        "id": "s141",
+        "type": "Open Concept",
+        "personId": null,
+        "status": "vacant"
+      },
+      {
+        "id": "s142",
+        "type": "Open Concept",
+        "personId": null,
+        "status": "vacant"
+      },
+      {
+        "id": "s143",
+        "type": "Open Concept",
+        "personId": null,
+        "status": "vacant"
+      },
+      {
+        "id": "s144",
+        "type": "Open Concept",
+        "personId": null,
+        "status": "vacant"
+      }
+    ]
+  },
+  {
+    "id": "z_studios",
+    "label": "Studios Offices",
+    "section": "ch",
+    "floor": "2F",
+    "building": "carriage",
+    "capacity": 10,
+    "seats": [
+      {
+        "id": "s131",
+        "type": "Single Office",
+        "personId": "p96"
+      },
+      {
+        "id": "s132",
+        "type": "Single Office",
+        "personId": "p97"
+      },
+      {
+        "id": "s133",
+        "type": "Shared Office",
+        "personId": "p98"
+      },
+      {
+        "id": "s134",
+        "type": "Shared Office",
+        "personId": "p99"
+      },
+      {
+        "id": "s135",
+        "type": "Shared Office",
+        "personId": "p100"
+      },
+      {
+        "id": "s136",
+        "type": "Shared Office",
+        "personId": "p101"
+      },
+      {
+        "id": "s137",
+        "type": "Shared Office",
+        "personId": "p102"
+      },
+      {
+        "id": "s138",
+        "type": "Shared Office",
+        "personId": "p103"
+      },
+      {
+        "id": "s139",
+        "type": "Bullpen",
+        "personId": "p104"
+      },
+      {
+        "id": "s140",
+        "type": "Bullpen",
+        "personId": "p105"
+      }
+    ]
+  }
+];
+
+const DEPT_COLORS = {
+  "Executive Office":"#C8D8F0","Mission Advancement":"#D4EDDA",
+  "Campus Operations":"#FFF3CD","Conferences":"#F8D7DA",
+  "GST":"#D1ECF1","HR":"#E2D9F3","Finance":"#FDEBD0",
+  "Technology":"#D5F5E3","Marketing":"#FDEDEC","Content":"#FEF9E7",
+  "Product":"#EBF5FB","Sales":"#F9EBEA","Studios":"#F4ECF7",
+};
+
+const DEPT_AVATAR_COLORS = {
+  "Executive Office":"#002157","Mission Advancement":"#166534",
+  "Campus Operations":"#92400E","Conferences":"#991B1B",
+  "GST":"#0E7490","HR":"#6B21A8","Finance":"#78350F",
+  "Technology":"#065F46","Marketing":"#9D174D","Content":"#78350F",
+  "Product":"#1E40AF","Sales":"#7C2D12","Studios":"#4A044E",
+};
+
+// ── FLOOR LABEL HELPER ────────────────────────────────────────────────────
+function floorLabel(f){
+  return f==='1F'?'1st Floor':f==='2F'?'2nd Floor':f==='3F'?'3rd Floor':f+' Floor';
+}
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let people = JSON.parse(JSON.stringify(PEOPLE_INIT));
+let zones  = JSON.parse(JSON.stringify(ZONES_INIT));
+let currentView     = 'home';
+let currentSection  = null;
+let currentFloor    = null;
+let currentBuilding = null;
+let activeDept      = null;
+let editingSeatId   = null;
+let editingPersonId = null;
+let dragSeatId      = null;
+let idCounter       = 200;
+let sidebarTab      = 'spaces';
+let sidebarOpen     = false;
+let floorPanelOpen  = false;
+
+// ── HELPERS ────────────────────────────────────────────────────────────────
+function getPerson(id){ return people.find(p=>p.id===id); }
+function getZone(id)  { return zones.find(z=>z.id===id); }
+function getSeat(sid){
+  for(const z of zones) for(const s of z.seats) if(s.id===sid) return {seat:s,zone:z};
+  return null;
+}
+function getPersonSeat(pid){
+  for(const z of zones) for(const s of z.seats) if(s.personId===pid) return {seat:s,zone:z};
+  return null;
+}
+
+function calcOcc(seatList){
+  const total    = seatList.length;
+  const assigned = seatList.filter(s=>s.personId && s.status!=='vacant' && s.status!=='flex' && s.status!=='tech').length;
+  return {total, assigned, pct: total>0 ? Math.round(assigned/total*100) : 0};
+}
+
+function setOccBar(elemId, pctElemId, pct){
+  const fill  = document.getElementById(elemId);
+  const label = document.getElementById(pctElemId);
+  if(!fill||!label) return;
+  fill.style.width = pct+'%';
+  fill.className   = 'occ-bar-fill '+(pct>=90?'occ-red':pct>=75?'occ-amber':'occ-green');
+  label.textContent = pct+'%';
+}
+function updateCampusOcc(){
+  const o = calcOcc(zones.flatMap(z=>z.seats));
+  setOccBar('occ-campus','occ-campus-pct',o.pct);
+}
+function showOccSection(label, seatList){
+  const o = calcOcc(seatList);
+  document.getElementById('occ-section-wrap').style.display='flex';
+  document.getElementById('occ-div2').style.display='block';
+  document.getElementById('occ-section-label').textContent = label;
+  setOccBar('occ-section','occ-section-pct',o.pct);
+}
+function showOccFloor(label, seatList){
+  const o = calcOcc(seatList);
+  document.getElementById('occ-floor-wrap').style.display='flex';
+  document.getElementById('occ-floor-label').textContent = label;
+  setOccBar('occ-floor','occ-floor-pct',o.pct);
+}
+function hideSubOcc(){
+  document.getElementById('occ-section-wrap').style.display='none';
+  document.getElementById('occ-div2').style.display='none';
+  document.getElementById('occ-floor-wrap').style.display='none';
+}
+
+// ── NAVIGATION ─────────────────────────────────────────────────────────────
+const SECTION_CONFIG = {
+  south:   {label:'South Section',   img:'images/main-south.jpg',   phLabel:'South Section',   floors:['1F','2F','3F']},
+  central: {label:'Central Section', img:'images/main-central.jpg', phLabel:'Central Section', floors:['2F','3F']},
+  north:   {label:'North Section',   img:'images/main-north.jpg',   phLabel:'North Section',   floors:['1F','2F','3F']},
+};
+
+function showView(id){
+  document.querySelectorAll('.view').forEach(v=>{
+    v.classList.remove('active'); v.classList.add('hidden');
+  });
+  const el = document.getElementById(id);
+  if(el){ el.classList.remove('hidden'); el.classList.add('active'); }
+}
+
+function updateBreadcrumb(){
+  const bc = document.getElementById('breadcrumb');
+  const sep = '<span class="bc-sep">›</span>';
+  let html = '<span class="bc-item" onclick="goHome()">Campus</span>';
+  if(currentBuilding==='main'){
+    html += sep+'<span class="bc-item" onclick="goBuilding(\'main\')">Main Campus</span>';
+    if(currentSection){
+      const lbl = currentSection.charAt(0).toUpperCase()+currentSection.slice(1);
+      html += sep+'<span class="bc-item" onclick="goSection(\''+currentSection+'\')">'+lbl+'</span>';
+      if(currentFloor) html += sep+'<span class="bc-item active">'+floorLabel(currentFloor)+'</span>';
+    }
+  } else if(currentBuilding==='carriage'){
+    html += sep+'<span class="bc-item" onclick="goBuilding(\'carriage\')">Carriage House</span>';
+    if(currentFloor) html += sep+'<span class="bc-item active">'+floorLabel(currentFloor)+'</span>';
+  }
+  bc.innerHTML = html;
+}
+
+function goHome(){
+  currentBuilding=null; currentSection=null; currentFloor=null;
+  closeFloorPanel();
+  showView('view-home'); hideSubOcc(); updateBreadcrumb();
+  checkImagePlaceholders();
+}
+
+function goBuilding(b){
+  currentBuilding=b; currentSection=null; currentFloor=null;
+  closeFloorPanel();
+  if(b==='main'){
+    showView('view-main');
+    showOccSection('Main Campus', zones.filter(z=>z.building==='main').flatMap(z=>z.seats));
+    document.getElementById('occ-floor-wrap').style.display='none';
+    document.getElementById('occ-div2').style.display='block';
+  } else {
+    showView('view-carriage');
+    showOccSection('Carriage House', zones.filter(z=>z.building==='carriage').flatMap(z=>z.seats));
+    document.getElementById('occ-floor-wrap').style.display='none';
+    document.getElementById('occ-div2').style.display='block';
+    document.querySelectorAll('#ch-floor-tabs .floor-tab').forEach(t=>t.classList.remove('active'));
+  }
+  updateBreadcrumb(); checkImagePlaceholders();
+}
+
+function goSection(s){
+  currentSection=s; currentFloor=null;
+  closeFloorPanel();
+  const cfg = SECTION_CONFIG[s];
+  document.getElementById('section-title-text').textContent = cfg.label;
+  const aerial = document.getElementById('aerial-section');
+  aerial.style.backgroundImage = "url('"+cfg.img+"')";
+  document.getElementById('ph-section-label').textContent = cfg.phLabel;
+  document.getElementById('ph-section-file').textContent  = cfg.img;
+
+  const tabsEl = document.getElementById('floor-tabs');
+  tabsEl.innerHTML = '';
+  cfg.floors.forEach(f=>{
+    const btn = document.createElement('button');
+    btn.className   = 'floor-tab';
+    btn.textContent = floorLabel(f);
+    btn.onclick     = ()=>goFloor(s,f);
+    tabsEl.appendChild(btn);
+  });
+
+  showOccSection(cfg.label, zones.filter(z=>z.section===s && z.building==='main').flatMap(z=>z.seats));
+  document.getElementById('occ-floor-wrap').style.display='none';
+  showView('view-section'); updateBreadcrumb(); checkImagePlaceholders();
+}
+
+function goFloor(section, floor){
+  currentFloor = floor;
+
+  // Update tab active state
+  const tabContainer = section==='ch'
+    ? document.getElementById('ch-floor-tabs')
+    : document.getElementById('floor-tabs');
+  tabContainer.querySelectorAll('.floor-tab').forEach(t=>{
+    const matches = t.textContent.startsWith(floor) ||
+      (floor==='1F' && t.textContent.includes('Open Concept')) ||
+      (floor==='2F' && t.textContent.includes('Studios'));
+    t.classList.toggle('active', matches);
+  });
+
+  const building   = section==='ch' ? 'carriage' : 'main';
+  const floorZones = zones.filter(z=>z.section===section && z.floor===floor && z.building===building);
+  const sectionLabel = section==='ch' ? 'Carriage House'
+    : (section==='north'?'North':section==='central'?'Central':'South')+' Section';
+
+  const floorSeats = floorZones.flatMap(z=>z.seats);
+  const o = calcOcc(floorSeats);
+  const pctColor = o.pct>=90?'#fca5a5':o.pct>=75?'#fcd34d':'#86efac';
+
+  // Render into floor panel (stays on same aerial view)
+  const panelId = section==='ch' ? 'floor-panel-ch' : 'floor-panel';
+  const panel   = document.getElementById(panelId);
+
+  // Build panel HTML
+  const titleEl   = panel.querySelector ? panel.querySelector('#floor-panel-title') : null;
+  
+  // Use the shared #floor-panel for section views, separate for carriage
+  if(section==='ch'){
+    renderFloorPanelInto(panel, floorZones, sectionLabel, floor, o, pctColor);
+    panel.style.display='flex';
+    panel.style.flexDirection='column';
+  } else {
+    // Already the shared floor-panel element
+    document.getElementById('floor-panel-title').textContent = sectionLabel+' — '+floorLabel(floor);
+    document.getElementById('floor-panel-sub').textContent   = floorZones.map(z=>z.label).join(' · ');
+    document.getElementById('floor-panel-occ').innerHTML =
+      '<span style="opacity:0.6;font-size:11px">Occupancy&nbsp;</span>'+
+      '<strong style="color:'+pctColor+';font-size:15px">'+o.pct+'%</strong>'+
+      '<span style="opacity:0.4;font-size:11px">&nbsp;('+o.assigned+'/'+o.total+')</span>';
+    renderFloorPlan(floorZones, section, floor);
+    document.getElementById('floor-panel').classList.add('open');
+    floorPanelOpen = true;
+  }
+
+  showOccFloor(floorLabel(floor), floorSeats);
+  updateBreadcrumb();
+}
+
+function renderFloorPlanInto(container, floorZones, floor){
+  container.innerHTML='';
+  floorZones.forEach(zone=>{
+    const o = calcOcc(zone.seats);
+    const pctColor = o.pct>=90?'#fca5a5':o.pct>=75?'#fcd34d':'#86efac';
+    const card = document.createElement('div');
+    card.className='zone-card';
+    card.innerHTML=`
+      <div class="zone-header">
+        <div>
+          <div class="zone-name">${zone.label}</div>
+          <div class="zone-floor-tag">${floorLabel(floor)} &middot; ${zone.capacity} seats</div>
+        </div>
+        <div class="zone-occ-badge" style="color:${pctColor}">
+          ${o.pct}% <span style="font-weight:400;opacity:0.6">(${o.assigned}/${o.total})</span>
+        </div>
+      </div>
+      <div class="zone-seats" id="zone-seats-${zone.id}"></div>`;
+    container.appendChild(card);
+    renderZoneSeats(zone);
+  });
+}
+
+function renderFloorPanelInto(panel, floorZones, sectionLabel, floor, o, pctColor){
+  // Build complete panel for carriage house
+  panel.innerHTML=`
+    <div id="floor-panel-header" style="display:flex;align-items:center;gap:14px;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0">
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:700;color:#fff">${sectionLabel} — ${floorLabel(floor)}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.45);margin-top:1px">${floorZones.map(z=>z.label).join(' · ')}</div>
+      </div>
+      <div style="font-size:12px;color:#FFE06A">
+        <span style="opacity:0.6">Occupancy&nbsp;</span>
+        <strong style="color:${pctColor};font-size:15px">${o.pct}%</strong>
+        <span style="opacity:0.4">&nbsp;(${o.assigned}/${o.total})</span>
+      </div>
+      <button onclick="closeCHPanel()" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.7);border-radius:5px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font)">✕ Close</button>
+    </div>
+    <div id="ch-panel-content" style="flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-wrap:wrap;gap:16px;align-content:flex-start"></div>
+    <div id="ch-panel-legend" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 20px;background:rgba(0,0,0,0.2);flex-shrink:0;border-top:1px solid rgba(255,255,255,0.06)"></div>
+  `;
+  const content = panel.querySelector('#ch-panel-content');
+  floorZones.forEach(zone=>{
+    const oz = calcOcc(zone.seats);
+    const pc = oz.pct>=90?'#fca5a5':oz.pct>=75?'#fcd34d':'#86efac';
+    const card=document.createElement('div');
+    card.className='zone-card';
+    card.innerHTML=`
+      <div class="zone-header">
+        <div><div class="zone-name">${zone.label}</div><div class="zone-floor-tag">${floorLabel(floor)} &middot; ${zone.capacity} seats</div></div>
+        <div class="zone-occ-badge" style="color:${pc}">${oz.pct}% <span style="font-weight:400;opacity:0.6">(${oz.assigned}/${oz.total})</span></div>
+      </div>
+      <div class="zone-seats" id="zone-seats-${zone.id}"></div>`;
+    content.appendChild(card);
+    renderZoneSeats(zone);
+  });
+  renderLegendInto(panel.querySelector('#ch-panel-legend'));
+}
+
+function closeCHPanel(){
+  const p = document.getElementById('floor-panel-ch');
+  if(p){ p.style.display='none'; }
+  currentFloor=null;
+  document.querySelectorAll('#ch-floor-tabs .floor-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('occ-floor-wrap').style.display='none';
+  updateBreadcrumb();
+}
+
+function closeFloorPanel(){
+  const p = document.getElementById('floor-panel');
+  if(p) p.classList.remove('open');
+  floorPanelOpen=false;
+  if(currentSection) {
+    document.querySelectorAll('#floor-tabs .floor-tab').forEach(t=>t.classList.remove('active'));
+  }
+  document.getElementById('occ-floor-wrap').style.display='none';
+  currentFloor=null;
+  updateBreadcrumb();
+}
+
+// ── FLOOR PLAN RENDER ──────────────────────────────────────────────────────
+function renderFloorPlan(floorZones, section, floor){
+  const content = document.getElementById('floor-panel-content');
+  content.innerHTML = '';
+  floorZones.forEach(zone=>{
+    const o = calcOcc(zone.seats);
+    const pctColor = o.pct>=90?'#fca5a5':o.pct>=75?'#fcd34d':'#86efac';
+    const card=document.createElement('div');
+    card.className='zone-card';
+    card.innerHTML=`
+      <div class="zone-header">
+        <div><div class="zone-name">${zone.label}</div><div class="zone-floor-tag">${floorLabel(floor)} &middot; ${zone.capacity} seats</div></div>
+        <div class="zone-occ-badge" style="color:${pctColor}">${o.pct}% <span style="font-weight:400;opacity:0.6">(${o.assigned}/${o.total})</span></div>
+      </div>
+      <div class="zone-seats" id="zone-seats-${zone.id}"></div>`;
+    content.appendChild(card);
+    renderZoneSeats(zone);
+  });
+  renderLegendInto(document.getElementById('floor-panel-legend'));
+  applyDeptFilter();
+}
+
+function renderZoneSeats(zone){
+  const container = document.getElementById('zone-seats-'+zone.id);
+  if(!container) return;
+  container.innerHTML='';
+  zone.seats.forEach(seat=>container.appendChild(createSeatTile(seat,zone.id)));
+}
+
+function createSeatTile(seat, zoneId){
+  const person    = seat.personId ? getPerson(seat.personId) : null;
+  const status    = seat.status || (person ? (person.status||'assigned') : 'vacant');
+  const dept      = person ? person.dept : '';
+  // Don't apply dept bg color in dark panel — use dot only
+  const note      = (seat.note||'').trim() || (person?.note||'').trim();
+
+  const tile = document.createElement('div');
+  tile.className       = 'seat-tile';
+  tile.dataset.seatId  = seat.id;
+  tile.dataset.zoneId  = zoneId;
+  tile.dataset.status  = status;
+  tile.dataset.dept    = dept;
+  if(dept && DEPT_COLORS[dept]) tile.style.borderLeft = `3px solid ${DEPT_COLORS[dept]}`;
+
+  const dotClass = 'dot-'+(
+    status==='assigned'?'assigned':status==='incoming'?'incoming':
+    status==='retiring'?'retiring':status==='flex'?'flex':
+    status==='tech'?'tech':'vacant');
+
+  // Note icon only if there's an actual note
+  const noteIcon = note
+    ? `<div class="seat-note-icon" title="${note.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();showNote('${seat.id}')">📝</div>`
+    : '';
+
+  // Edit person link only if assigned
+  const editLink = person
+    ? `<div class="edit-person-link" onclick="event.stopPropagation();openEditPerson('${person.id}')">Edit</div>`
+    : '';
+
+  tile.innerHTML = `
+    <div>
+      <div class="seat-name">${person ? person.last+', '+person.first : (seat.label||'—')}</div>
+      <div class="seat-title">${person ? person.title : (status==='flex'?'Flex / Available':status==='vacant'?'Vacant':'—')}</div>
+      ${dept?`<div class="seat-dept-tag" style="background:${DEPT_COLORS[dept]||'rgba(255,255,255,0.12)'};color:#002157">${dept}</div>`:''}
+    </div>
+    <div class="seat-type-tag">${seat.type||''}</div>
+    <div class="seat-status-dot ${dotClass}"></div>
+    ${noteIcon}
+    ${editLink}
+  `;
+
+  tile.addEventListener('click',    ()=>openSeatModal(seat.id));
+  tile.addEventListener('dragstart', e=>{dragSeatId=seat.id; tile.classList.add('dragging'); e.dataTransfer.effectAllowed='move';});
+  tile.addEventListener('dragend',   ()=>{tile.classList.remove('dragging'); dragSeatId=null;});
+  tile.addEventListener('dragover',  e=>{e.preventDefault(); tile.classList.add('drag-over');});
+  tile.addEventListener('dragleave', ()=>tile.classList.remove('drag-over'));
+  tile.addEventListener('drop',      e=>{e.preventDefault(); tile.classList.remove('drag-over'); dropOnSeat(seat.id);});
+  tile.draggable = true;
+  return tile;
+}
+
+// ── DRAG & DROP ────────────────────────────────────────────────────────────
+function dropOnSeat(targetSeatId){
+  if(!dragSeatId||dragSeatId===targetSeatId) return;
+  const src=getSeat(dragSeatId), tgt=getSeat(targetSeatId);
+  if(!src||!tgt) return;
+  const tmpP=src.seat.personId, tmpS=src.seat.status;
+  src.seat.personId=tgt.seat.personId; src.seat.status=tgt.seat.status||'vacant';
+  tgt.seat.personId=tmpP; tgt.seat.status=tmpS||'assigned';
+  new Set([src.zone.id,tgt.zone.id]).forEach(zid=>renderZoneSeats(getZone(zid)));
+  saveState(); showToast('Seats swapped'); updateCampusOcc();
+  if(sidebarOpen) renderSidebar();
+}
+
+// ── SEAT MODAL ─────────────────────────────────────────────────────────────
+function openSeatModal(seatId){
+  editingSeatId=seatId;
+  const result=getSeat(seatId);
+  if(!result) return;
+  const {seat}=result;
+  const person=seat.personId?getPerson(seat.personId):null;
+  document.getElementById('modal-seat-title').textContent=seat.type+(person?' — '+person.last+', '+person.first:'');
+  const sel=document.getElementById('seat-person-select');
+  sel.innerHTML='<option value="">— Unassigned —</option>';
+  [...people].sort((a,b)=>a.last.localeCompare(b.last)).forEach(p=>{
+    const opt=document.createElement('option');
+    opt.value=p.id; opt.textContent=p.last+', '+p.first+' ('+p.dept+')';
+    if(seat.personId===p.id) opt.selected=true;
+    sel.appendChild(opt);
+  });
+  document.getElementById('seat-type-input').value   =seat.type||'';
+  document.getElementById('seat-status-select').value=seat.status||'assigned';
+  document.getElementById('seat-note-input').value   =seat.note||'';
+  document.getElementById('modal-seat').classList.add('open');
+}
+
+function saveSeat(){
+  if(!editingSeatId) return;
+  const result=getSeat(editingSeatId);
+  if(!result) return;
+  const {seat}=result;
+  seat.personId=document.getElementById('seat-person-select').value||null;
+  seat.type    =document.getElementById('seat-type-input').value;
+  seat.status  =document.getElementById('seat-status-select').value;
+  seat.note    =document.getElementById('seat-note-input').value;
+  closeModal('modal-seat');
+  renderZoneSeats(result.zone);
+  updateCampusOcc(); saveState(); showToast('Seat saved');
+  if(sidebarOpen) renderSidebar();
+}
+
+function clearSeat(){
+  if(!editingSeatId) return;
+  const result=getSeat(editingSeatId);
+  if(!result) return;
+  result.seat.personId=null; result.seat.status='vacant';
+  closeModal('modal-seat');
+  renderZoneSeats(result.zone);
+  updateCampusOcc(); saveState(); showToast('Seat cleared');
+  if(sidebarOpen) renderSidebar();
+}
+
+// ── PERSON MODAL ───────────────────────────────────────────────────────────
+function openAddPerson(){
+  editingPersonId=null;
+  document.getElementById('modal-person-title').textContent='Add Person';
+  ['person-last','person-first','person-title','person-note'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('person-dept').value='Executive Office';
+  document.getElementById('person-status').value='assigned';
+  document.getElementById('btn-delete-person').style.display='none';
+  document.getElementById('modal-person').classList.add('open');
+}
+
+function openEditPerson(personId){
+  editingPersonId=personId;
+  const p=getPerson(personId);
+  if(!p) return;
+  document.getElementById('modal-person-title').textContent='Edit — '+p.last+', '+p.first;
+  document.getElementById('person-last').value  =p.last||'';
+  document.getElementById('person-first').value =p.first||'';
+  document.getElementById('person-title').value =p.title||'';
+  document.getElementById('person-dept').value  =p.dept||'';
+  document.getElementById('person-status').value=p.status||'assigned';
+  document.getElementById('person-note').value  =p.note||'';
+  document.getElementById('btn-delete-person').style.display='block';
+  document.getElementById('modal-person').classList.add('open');
+}
+
+function savePerson(){
+  const last=document.getElementById('person-last').value.trim();
+  const first=document.getElementById('person-first').value.trim();
+  if(!last||!first){showToast('Please enter a name');return;}
+  if(editingPersonId){
+    const p=getPerson(editingPersonId);
+    p.last=last;p.first=first;
+    p.title =document.getElementById('person-title').value;
+    p.dept  =document.getElementById('person-dept').value;
+    p.status=document.getElementById('person-status').value;
+    p.note  =document.getElementById('person-note').value;
+  } else {
+    people.push({id:'p'+idCounter++,last,first,
+      title: document.getElementById('person-title').value,
+      dept:  document.getElementById('person-dept').value,
+      status:document.getElementById('person-status').value,
+      note:  document.getElementById('person-note').value,
+    });
+  }
+  closeModal('modal-person');
+  // Re-render any visible floor
+  reRenderCurrentFloor();
+  saveState(); showToast('Person saved');
+  if(sidebarOpen) renderSidebar();
+}
+
+function deletePerson(){
+  if(!editingPersonId) return;
+  for(const z of zones) for(const s of z.seats) if(s.personId===editingPersonId) s.personId=null;
+  people=people.filter(p=>p.id!==editingPersonId);
+  closeModal('modal-person');
+  reRenderCurrentFloor();
+  saveState(); showToast('Person removed');
+  if(sidebarOpen) renderSidebar();
+}
+
+function reRenderCurrentFloor(){
+  if(!currentFloor) return;
+  const building=currentBuilding==='carriage'?'carriage':'main';
+  const section =currentSection||'ch';
+  zones.filter(z=>z.section===section&&z.floor===currentFloor&&z.building===building)
+       .forEach(z=>renderZoneSeats(z));
+}
+
+// ── SEARCH ──────────────────────────────────────────────────────────────────
+function onSearch(val){
+  const box=document.getElementById('search-results');
+  if(!val.trim()){box.style.display='none';return;}
+  const q=val.toLowerCase();
+  const matches=people.filter(p=>(p.last+' '+p.first+' '+p.title+' '+p.dept).toLowerCase().includes(q)).slice(0,8);
+  if(!matches.length){box.style.display='none';return;}
+  box.innerHTML=matches.map(p=>{
+    const r=getPersonSeat(p.id);
+    const loc=r?r.zone.label:'Unassigned';
+    return `<div class="sr-item" onclick="jumpToPerson('${p.id}')">
+      <strong>${p.last}, ${p.first}</strong>
+      <span>${p.title||''} &middot; ${p.dept} &middot; ${loc}</span>
+    </div>`;
+  }).join('');
+  box.style.display='block';
+}
+
+function jumpToPerson(personId){
+  document.getElementById('search-results').style.display='none';
+  document.getElementById('search').value='';
+  const result=getPersonSeat(personId);
+  if(!result){showToast('Person is not assigned to a seat');return;}
+  const z=result.zone;
+  currentBuilding=z.building; currentSection=z.section; currentFloor=z.floor;
+  if(z.building==='carriage') goFloor('ch',z.floor);
+  else goFloor(z.section,z.floor);
+  setTimeout(()=>{
+    const tile=document.querySelector('[data-seat-id="'+result.seat.id+'"]');
+    if(tile){
+      tile.scrollIntoView({behavior:'smooth',block:'center'});
+      tile.style.transition='box-shadow .3s';
+      tile.style.boxShadow='0 0 0 3px var(--gold)';
+      setTimeout(()=>tile.style.boxShadow='',2200);
+    }
+  },400);
+}
+
+// ── DEPT FILTER ─────────────────────────────────────────────────────────────
+function filterDept(dept){
+  activeDept=dept||null;
+  applyDeptFilter();
+}
+
+function applyDeptFilter(){
+  document.querySelectorAll('.seat-tile').forEach(t=>{
+    if(!activeDept){t.classList.remove('dept-highlight','dept-dim');}
+    else{
+      const match=t.dataset.dept===activeDept;
+      t.classList.toggle('dept-highlight',match);
+      t.classList.toggle('dept-dim',!match);
+    }
+  });
+  document.querySelectorAll('.legend-item').forEach(li=>{
+    li.classList.toggle('active-filter',li.dataset.dept===activeDept);
+  });
+}
+
+// ── LEGEND ───────────────────────────────────────────────────────────────────
+function renderLegendInto(legendEl){
+  if(!legendEl) return;
+  const tiles=document.querySelectorAll('.seat-tile[data-dept]');
+  const depts=new Set();
+  tiles.forEach(t=>{if(t.dataset.dept) depts.add(t.dataset.dept);});
+  legendEl.innerHTML='<span class="legend-label-hdr">Filter:</span>';
+  [...depts].sort().forEach(dept=>{
+    const color=DEPT_COLORS[dept]||'#888';
+    const item=document.createElement('div');
+    item.className='legend-item'+(activeDept===dept?' active-filter':'');
+    item.dataset.dept=dept;
+    item.innerHTML=`<div class="legend-dot" style="background:${color}"></div>${dept}`;
+    item.onclick=()=>{
+      const sel=document.getElementById('dept-filter');
+      if(activeDept===dept){activeDept=null;sel.value='';}
+      else{activeDept=dept;sel.value=dept;}
+      applyDeptFilter();
+      document.querySelectorAll('.legend-item').forEach(li=>li.classList.toggle('active-filter',li.dataset.dept===activeDept));
+    };
+    legendEl.appendChild(item);
+  });
+  // Status key strip
+  const sep = document.createElement('span');
+  sep.style.cssText = 'width:1px;height:16px;background:rgba(255,255,255,0.15);align-self:center;flex-shrink:0;margin:0 6px';
+  legendEl.appendChild(sep);
+  const statusLabel = document.createElement('span');
+  statusLabel.className = 'legend-label-hdr';
+  statusLabel.textContent = 'Status:';
+  legendEl.appendChild(statusLabel);
+  [
+    {label:'Assigned', color:'#4ade80'},
+    {label:'Incoming', color:'#60a5fa'},
+    {label:'Retiring', color:'#fbbf24'},
+    {label:'Flex',     color:'#c084fc'},
+    {label:'Vacant',   color:'rgba(255,255,255,0.25)'},
+  ].forEach(s=>{
+    const sk = document.createElement('span');
+    sk.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(255,255,255,0.65);white-space:nowrap';
+    sk.innerHTML = `<span style="width:8px;height:8px;border-radius:50%;background:${s.color};flex-shrink:0;display:inline-block"></span>${s.label}`;
+    legendEl.appendChild(sk);
+  });
+}
+
+// ── NOTES ────────────────────────────────────────────────────────────────────
+function showNote(seatId){
+  const result=getSeat(seatId);
+  if(!result) return;
+  const note=(result.seat.note||'').trim()||(result.seat.personId?getPerson(result.seat.personId)?.note?.trim():'');
+  if(note) alert('📝 Note:\n\n'+note);
+}
+
+// ── MODAL HELPERS ─────────────────────────────────────────────────────────────
+function closeModal(id){
+  document.getElementById(id).classList.remove('open');
+  editingSeatId=null; editingPersonId=null;
+}
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2600);
+}
+
+// ── SIDEBAR ────────────────────────────────────────────────────────────────
+function toggleSidebar(){
+  sidebarOpen=!sidebarOpen;
+  const sb=document.getElementById('sidebar');
+  sb.classList.toggle('open',sidebarOpen);
+  if(sidebarOpen) renderSidebar();
+}
+
+function showSidebarTab(tab){
+  sidebarTab=tab;
+  document.getElementById('stab-spaces').classList.toggle('active',tab==='spaces');
+  document.getElementById('stab-people').classList.toggle('active',tab==='people');
+  renderSidebar();
+}
+
+function renderSidebar(){
+  const body=document.getElementById('sidebar-body');
+  if(sidebarTab==='spaces') renderSidebarSpaces(body);
+  else renderSidebarPeople(body);
+}
+
+function renderSidebarSpaces(body){
+  const BUILDINGS=[
+    {id:'main',  label:'Main Campus',   sections:['north','central','south']},
+    {id:'carriage',label:'Carriage House',sections:['ch']},
+  ];
+  const SEC_LABELS={north:'North',central:'Central',south:'South',ch:'All Floors'};
+
+  let html='';
+  BUILDINGS.forEach(b=>{
+    const bSeats=zones.filter(z=>z.building===b.id).flatMap(z=>z.seats);
+    const bo=calcOcc(bSeats);
+    const pct=bo.pct;
+    const pcolor=pct>=90?'#fca5a5':pct>=75?'#fcd34d':'#86efac';
+    html+=`<div class="sb-building">
+      <div class="sb-building-hdr">
+        <span>${b.label}</span>
+        <span class="sb-occ-mini" style="color:${pcolor}">${pct}% (${bo.assigned}/${bo.total})</span>
+      </div>`;
+
+    // Group by floor within each section
+    const allFloors=[...new Set(zones.filter(z=>z.building===b.id).map(z=>z.floor))].sort();
+    allFloors.forEach(floor=>{
+      const floorZones=zones.filter(z=>z.building===b.id&&z.floor===floor);
+      const fo=calcOcc(floorZones.flatMap(z=>z.seats));
+      const fc=fo.pct>=90?'#fca5a5':fo.pct>=75?'#fcd34d':'#86efac';
+      html+=`<div class="sb-floor">
+        <div class="sb-floor-hdr">${floor} Floor — <span style="color:${fc}">${fo.pct}%</span></div>`;
+      floorZones.forEach(zone=>{
+        const zo=calcOcc(zone.seats);
+        const zc=zo.pct>=90?'#fca5a5':zo.pct>=75?'#fcd34d':'#86efac';
+        html+=`<div class="sb-zone" onclick="navToZone('${zone.id}')">
+          <span>${zone.label}</span>
+          <span class="sb-zone-occ" style="color:${zc}">${zo.assigned}/${zo.total}</span>
+        </div>`;
+      });
+      html+='</div>';
+    });
+    html+='</div>';
+  });
+  body.innerHTML=html;
+}
+
+function navToZone(zoneId){
+  const zone=getZone(zoneId);
+  if(!zone) return;
+  currentBuilding=zone.building;
+  currentSection =zone.section;
+  currentFloor   =zone.floor;
+  if(zone.building==='carriage') goFloor('ch',zone.floor);
+  else goFloor(zone.section,zone.floor);
+  setTimeout(()=>{
+    const card=document.getElementById('zone-seats-'+zoneId);
+    if(card) card.scrollIntoView({behavior:'smooth',block:'start'});
+  },450);
+}
+
+function renderSidebarPeople(body){
+  // Search input
+  let html=`<input class="sb-search" type="text" id="sb-people-search" placeholder="Filter people…" oninput="filterSidebarPeople(this.value)">`;
+  body.innerHTML=html;
+
+  const assigned=people.filter(p=>getPersonSeat(p.id));
+  const unassigned=people.filter(p=>!getPersonSeat(p.id));
+
+  const listEl=document.createElement('div');
+  listEl.id='sb-people-list';
+  renderSidebarPeopleList(listEl, assigned, unassigned);
+  body.appendChild(listEl);
+}
+
+function renderSidebarPeopleList(container, assigned, unassigned){
+  let html='';
+  if(unassigned.length){
+    html+=`<div class="sb-section-hdr">Unassigned <span class="sb-unassigned-badge">${unassigned.length}</span></div>`;
+    html+=unassigned.sort((a,b)=>a.last.localeCompare(b.last)).map(p=>personCard(p,false)).join('');
+  }
+  if(assigned.length){
+    html+=`<div class="sb-section-hdr">Assigned (${assigned.length})</div>`;
+    html+=assigned.sort((a,b)=>a.last.localeCompare(b.last)).map(p=>personCard(p,true)).join('');
+  }
+  container.innerHTML=html;
+}
+
+function personCard(p, isAssigned){
+  const initials=(p.first[0]||'')+(p.last[0]||'');
+  const avatarColor=DEPT_AVATAR_COLORS[p.dept]||'#002157';
+  const r=getPersonSeat(p.id);
+  const loc=r?r.zone.label:'No seat';
+  return `<div class="sb-person" onclick="openEditPerson('${p.id}')">
+    <div class="sb-person-avatar" style="background:${avatarColor}">${initials}</div>
+    <div class="sb-person-info">
+      <div class="sb-person-name">${p.last}, ${p.first}</div>
+      <div class="sb-person-sub">${p.dept} · ${loc}</div>
+    </div>
+  </div>`;
+}
+
+function filterSidebarPeople(val){
+  const q=val.toLowerCase().trim();
+  const filtered=q?people.filter(p=>(p.last+' '+p.first+' '+p.dept+' '+p.title).toLowerCase().includes(q)):people;
+  const assigned=filtered.filter(p=>getPersonSeat(p.id));
+  const unassigned=filtered.filter(p=>!getPersonSeat(p.id));
+  const container=document.getElementById('sb-people-list');
+  if(container) renderSidebarPeopleList(container,assigned,unassigned);
+}
+
+// ── IMAGE PLACEHOLDERS ────────────────────────────────────────────────────────
+function checkImagePlaceholders(){
+  const tests=[
+    ['aerial-home','ph-home','images/campus-wide.jpg'],
+    ['aerial-main','ph-main','images/campus-mid.jpg'],
+    ['aerial-carriage','ph-carriage','images/carriage-house.jpg'],
+  ];
+  tests.forEach(([aerialId,phId,url])=>{
+    const img=new Image();
+    img.onload=()=>{document.getElementById(phId).style.display='none';};
+    img.onerror=()=>{
+      const a=document.getElementById(aerialId);
+      if(a){a.style.backgroundImage='none';a.style.background='none';}
+      const ph=document.getElementById(phId);
+      if(ph) ph.style.display='flex';
+    };
+    img.src=url+'?t='+Date.now();
+  });
+}
+
+// ── MIGRATE ZONE STRUCTURE ────────────────────────────────────────────────────
+// Corrects stale localStorage zone metadata (floor/section/building) for zones
+// that were previously on 2F but belong on 3F. Preserves all seat assignments.
+function migrateZoneStructure(){
+  const ZONE_META={
+    z_dev:    {floor:'3F',section:'central',building:'main'},
+    z_ops:    {floor:'3F',section:'central',building:'main'},
+    z_events: {floor:'3F',section:'central',building:'main'},
+  };
+  let changed=false;
+  zones.forEach(z=>{
+    const meta=ZONE_META[z.id];
+    if(meta){
+      if(z.floor!==meta.floor||z.section!==meta.section||z.building!==meta.building){
+        z.floor=meta.floor;z.section=meta.section;z.building=meta.building;
+        changed=true;
+      }
+    }
+  });
+  if(changed) saveState();
+}
+
+// ── PERSISTENCE (SharePoint REST API) ────────────────────────────────────────
+async function getDigest(){
+  if(Date.now()<_digestExp) return _digest;
+  try{
+    const r=await fetch(`${SP_SITE}/_api/contextinfo`,{
+      method:'POST',credentials:'include',
+      headers:{Accept:'application/json;odata=verbose'}
+    });
+    const d=await r.json();
+    _digest=d.d.GetContextWebInformation.FormDigestValue;
+    _digestExp=Date.now()+25*60*1000;
+  }catch(e){console.error('SP digest error',e);}
+  return _digest;
+}
+
+async function saveState(){
+  if(!spItemIds.people||!spItemIds.zones) return; // not loaded yet
+  try{
+    const digest=await getDigest();
+    const hdrs={
+      Accept:'application/json;odata=verbose',
+      'Content-Type':'application/json;odata=verbose',
+      'X-RequestDigest':digest,
+      'X-HTTP-Method':'MERGE',
+      'IF-MATCH':'*'
+    };
+    await Promise.all([
+      fetch(`${SP_API}(${spItemIds.people})`,{
+        method:'POST',credentials:'include',headers:hdrs,
+        body:JSON.stringify({__metadata:{type:SP_TYPE},JsonData:JSON.stringify(people)})
+      }),
+      fetch(`${SP_API}(${spItemIds.zones})`,{
+        method:'POST',credentials:'include',headers:hdrs,
+        body:JSON.stringify({__metadata:{type:SP_TYPE},JsonData:JSON.stringify(zones)})
+      })
+    ]);
+  }catch(e){console.error('SP saveState error',e);}
+}
+
+async function loadState(){
+  try{
+    const ctrl=new AbortController();
+    const tId=setTimeout(()=>ctrl.abort(),8000); // 8s timeout
+    const r=await fetch(
+      `${SP_API}?$select=Id,Title,JsonData&$orderby=Id&$top=10`,
+      {credentials:'include',headers:{Accept:'application/json;odata=verbose'},signal:ctrl.signal}
+    );
+    clearTimeout(tId);
+    const d=await r.json();
+    (d.d.results||[]).forEach(item=>{
+      if(item.Title==='people'){
+        spItemIds.people=item.Id;
+        if(item.JsonData){try{const p=JSON.parse(item.JsonData);if(Array.isArray(p)&&p.length) people=p;}catch(e){}}
+      }
+      if(item.Title==='zones'){
+        spItemIds.zones=item.Id;
+        if(item.JsonData){try{const z=JSON.parse(item.JsonData);if(Array.isArray(z)&&z.length) zones=z;}catch(e){}}
+      }
+    });
+    // First run: persist defaults to SharePoint
+    if(spItemIds.people&&spItemIds.zones){
+      const digest=await getDigest();
+      const hdrs={
+        Accept:'application/json;odata=verbose',
+        'Content-Type':'application/json;odata=verbose',
+        'X-RequestDigest':digest,
+        'X-HTTP-Method':'MERGE',
+        'IF-MATCH':'*'
+      };
+      const promises=[];
+      if(!d.d.results.find(i=>i.Title==='people'&&i.JsonData)){
+        promises.push(fetch(`${SP_API}(${spItemIds.people})`,{
+          method:'POST',credentials:'include',headers:hdrs,
+          body:JSON.stringify({__metadata:{type:SP_TYPE},JsonData:JSON.stringify(people)})
+        }));
+      }
+      if(!d.d.results.find(i=>i.Title==='zones'&&i.JsonData)){
+        promises.push(fetch(`${SP_API}(${spItemIds.zones})`,{
+          method:'POST',credentials:'include',headers:hdrs,
+          body:JSON.stringify({__metadata:{type:SP_TYPE},JsonData:JSON.stringify(zones)})
+        }));
+      }
+      if(promises.length) await Promise.all(promises);
+    }
+  }catch(e){
+    console.warn('SP loadState failed — running on defaults. Error:',e.name,e.message);
+  }
+}
+
+// ── CARRIAGE HOUSE PANEL STYLES (injected) ────────────────────────────────────
+(function injectChPanelStyles(){
+  const s=document.createElement('style');
+  s.textContent=`
+    #floor-panel-ch{
+      position:absolute;bottom:0;left:0;right:0;height:72%;
+      background:rgba(0,21,64,0.97);border-top:2px solid var(--gold);
+      display:none;flex-direction:column;z-index:50;
+      box-shadow:0 -8px 32px rgba(0,0,0,0.4);
+    }
+    #ch-panel-content::-webkit-scrollbar{width:5px}
+    #ch-panel-content::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:3px}
+  `;
+  document.head.appendChild(s);
+})();
+
+// ── OUTSIDE CLICK ────────────────────────────────────────────────────────────
+document.addEventListener('click',e=>{
+  const sr=document.getElementById('search-results');
+  if(!document.getElementById('search-wrap').contains(e.target)) sr.style.display='none';
+});
+document.querySelectorAll('.modal-overlay').forEach(m=>{
+  m.addEventListener('click',e=>{if(e.target===m) closeModal(m.id);});
+});
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+
+function renderCurrentView(){
+  try{
+    const activeView=document.querySelector('.view.active');
+    if(!activeView) return;
+    // re-render floor panel if open
+    const fp=document.getElementById('floor-panel');
+    if(fp && fp.classList.contains('open')){
+      const floorBtns=document.querySelectorAll('.floor-tab.active');
+      if(floorBtns.length) floorBtns[0].click();
+    }
+  }catch(e){}
+}
+
+(function init(){
+  // Show the map immediately with default data
+  migrateZoneStructure();
+  updateCampusOcc();
+  checkImagePlaceholders();
+  // Load SharePoint data in background — map stays usable while this runs
+  const ov=document.getElementById('sp-loading');
+  if(ov){ov.classList.add('hidden');setTimeout(()=>ov.remove(),400);}
+  loadState().then(()=>{
+    migrateZoneStructure();
+    updateCampusOcc();
+    renderCurrentView();
+  }).catch(e=>console.warn('SP sync failed:',e));
+})();
+
+</script>
+</body>
+</html>
