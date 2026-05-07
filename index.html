@@ -3319,10 +3319,6 @@ function renderCurrentView(){
   if(ov){ov.classList.add('hidden');setTimeout(()=>ov.remove(),400);}
   loadState().then(()=>{
     migrateZoneStructure();
-    updateCampusOcc();
-    renderCurrentView();
-  }).catch(e=>console.warn('SP sync failed:',e));
-})();
-</script>
-</body>
-</html>
+    // Sync idCounter so new people never get IDs that collide with loaded data
+    people.forEach(p=>{
+      const n=parseInt(p.
