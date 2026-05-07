@@ -2441,7 +2441,7 @@ function floorLabel(f){
 
 // ── SUPABASE CONFIG ───────────────────────────────────────────────────────────
 const SB_URL = 'https://ckiudebtpgqdekvwhzao.supabase.co/rest/v1/seating_data';
-const SB_KEY = 'EyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNraXVkZWJ0cGdxZGVrdndoemFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NzQ1MjAsImV4cCI6MjA5MzE1MDUyMH0.jgpaL4jeZVTzvquxOynkol2EdhEacKkgek2aNJ-dQ68';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNraXVkZWJ0cGdxZGVrdndoemFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NzQ1MjAsImV4cCI6MjA5MzE1MDUyMH0.jgpaL4jeZVTzvquxOynkol2EdhEacKkgek2aNJ-dQ68';
 const SB_HDR = {apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,'Content-Type':'application/json'};
 
 // ── STATE ──────────────────────────────────────────────────────────────────
@@ -3052,10 +3052,13 @@ function closeModal(id){
   editingSeatId=null; editingPersonId=null;
 }
 
-function showToast(msg){
+function showToast(msg, isError=false){
   const t=document.getElementById('toast');
-  t.textContent=msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2600);
+  t.textContent=msg;
+  t.style.borderLeftColor = isError ? '#f87171' : 'var(--gold)';
+  t.style.background = isError ? '#3b0a0a' : 'var(--navy-dark)';
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), isError ? 4000 : 2600);
 }
 
 // ── SIDEBAR ────────────────────────────────────────────────────────────────
@@ -3230,7 +3233,7 @@ function migrateZoneStructure(){
 // ── PERSISTENCE (Supabase) ────────────────────────────────────────────────────
 async function saveState(){
   try{
-    await Promise.all([
+    const [r1,r2]=await Promise.all([
       fetch(`${SB_URL}?key=eq.people`,{
         method:'PATCH',headers:{...SB_HDR,Prefer:'return=minimal'},
         body:JSON.stringify({value:JSON.stringify(people)})
@@ -3240,7 +3243,15 @@ async function saveState(){
         body:JSON.stringify({value:JSON.stringify(zones)})
       })
     ]);
-  }catch(e){console.warn('Supabase saveState error:',e);}
+    if(!r1.ok||!r2.ok){
+      const code=!r1.ok?r1.status:r2.status;
+      throw new Error('HTTP '+code);
+    }
+    showToast('✓ Saved');
+  }catch(e){
+    console.warn('Supabase saveState error:',e);
+    showToast('⚠️ Save failed — check connection', true);
+  }
 }
 
 async function loadState(){
@@ -3303,7 +3314,7 @@ function renderCurrentView(){
   migrateZoneStructure();
   updateCampusOcc();
   checkImagePlaceholders();
-  // Load SharePoint data in background — map stays usable while this runs
+  // Load seating data in background — map stays usable while this runs
   const ov=document.getElementById('sp-loading');
   if(ov){ov.classList.add('hidden');setTimeout(()=>ov.remove(),400);}
   loadState().then(()=>{
@@ -3312,7 +3323,6 @@ function renderCurrentView(){
     renderCurrentView();
   }).catch(e=>console.warn('SP sync failed:',e));
 })();
-
 </script>
 </body>
 </html>
