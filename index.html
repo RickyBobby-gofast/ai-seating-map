@@ -3321,4 +3321,11 @@ function renderCurrentView(){
     migrateZoneStructure();
     // Sync idCounter so new people never get IDs that collide with loaded data
     people.forEach(p=>{
-      const n=parseInt(p.
+      const n=parseInt(p.id.replace('p',''));
+      if(!isNaN(n)&&n>=idCounter) idCounter=n+1;
+    });
+    updateCampusOcc();
+    renderCurrentView();
+  }).catch(e=>console.warn('SP sync failed:',e));
+})();
+</script></body></html>
