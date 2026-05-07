@@ -2831,9 +2831,9 @@ function openSeatModal(seatId){
   [...people].sort((a,b)=>a.last.localeCompare(b.last)).forEach(p=>{
     const opt=document.createElement('option');
     opt.value=p.id; opt.textContent=p.last+', '+p.first+' ('+p.dept+')';
-    if(seat.personId===p.id) opt.selected=true;
     sel.appendChild(opt);
   });
+  sel.value=seat.personId||'';
   document.getElementById('seat-type-input').value   =seat.type||'';
   document.getElementById('seat-status-select').value=seat.status||'assigned';
   document.getElementById('seat-note-input').value   =seat.note||'';
